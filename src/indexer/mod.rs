@@ -83,7 +83,7 @@ impl Indexer {
                     if events_found > 0 {
                         info!("Block {}: Found {} events", current_block, events_found);
                     } else {
-                        debug!("Block {}: No events", current_block);
+                        info!("Block {}: No events", current_block);
                     }
 
                     // Update last synced block
