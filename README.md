@@ -321,19 +321,137 @@ Response:
 ```
 
 #### WebSocket `/ws`
-Real-time event streaming
+Real-time event streaming via WebSocket connection
 
+**Authentication:**
+WebSocket connections require JWT token authentication via query parameter:
+
+```
+ws://localhost:8080/ws?token=YOUR_JWT_TOKEN
+wss://api-8004-dev.fly.dev/ws?token=YOUR_JWT_TOKEN  (for production)
+```
+
+**Example (Browser/JavaScript):**
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/ws', {
-  headers: {
-    'Authorization': 'Bearer YOUR_TOKEN_HERE'
-  }
+// First, get JWT token from login
+const response = await fetch('http://localhost:8080/login', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({ username: 'admin', password: 'yourpassword' })
 });
+const { token } = await response.json();
+
+// Connect to WebSocket with token
+const ws = new WebSocket(`ws://localhost:8080/ws?token=${token}`);
+
+ws.onopen = () => {
+  console.log('Connected to event stream');
+};
 
 ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('New event:', data);
+  const eventData = JSON.parse(event.data);
+  console.log('New event received:', eventData);
+  // eventData contains: block_number, transaction_hash, event_type, contract_address, etc.
 };
+
+ws.onerror = (error) => {
+  console.error('WebSocket error:', error);
+};
+
+ws.onclose = () => {
+  console.log('Connection closed');
+};
+```
+
+**Example (Node.js):**
+```javascript
+const WebSocket = require('ws');
+const fetch = require('node-fetch');
+
+async function connectWebSocket() {
+  // Login
+  const response = await fetch('http://localhost:8080/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: 'admin', password: 'yourpassword' })
+  });
+  const { token } = await response.json();
+
+  // Connect
+  const ws = new WebSocket(`ws://localhost:8080/ws?token=${token}`);
+
+  ws.on('message', (data) => {
+    const event = JSON.parse(data.toString());
+    console.log('Event:', event);
+  });
+}
+
+connectWebSocket();
+```
+
+**Example (Python):**
+```python
+import asyncio
+import json
+import requests
+import websockets
+
+async def connect_websocket():
+    # Login
+    response = requests.post('http://localhost:8080/login',
+        json={'username': 'admin', 'password': 'yourpassword'})
+    token = response.json()['token']
+
+    # Connect
+    async with websockets.connect(f'ws://localhost:8080/ws?token={token}') as ws:
+        while True:
+            message = await ws.recv()
+            event = json.loads(message)
+            print('Event:', event)
+
+asyncio.run(connect_websocket())
+```
+
+**Test Scripts:**
+We provide ready-to-use WebSocket test scripts:
+
+```bash
+# Node.js test script
+npm install ws node-fetch
+node test-websocket.js [username] [password] [api-url]
+
+# Python test script
+pip install websockets requests
+python test-websocket.py [username] [password] [api-url]
+
+# Browser test page (open in browser)
+open test-websocket.html
+```
+
+**Features:**
+- Real-time event streaming as they are indexed
+- Automatic ping/pong keepalive (every 30 seconds)
+- JSON event format matching the REST API
+- Connection stays open until client disconnects
+
+**Event Format:**
+Events received via WebSocket have the same format as the REST API:
+```json
+{
+  "id": 123,
+  "block_number": 9420240,
+  "block_timestamp": 1697405604,
+  "transaction_hash": "0x561afe992546abba...",
+  "log_index": 67,
+  "contract_address": "0x8004cb39f29c09145f24ad9dde2a108c1a2cdfc5",
+  "event_type": "ValidationResponse",
+  "data": {
+    "agent_id": "0",
+    "validator_address": "0x15cbd54a73ac8e18ee84bea668ef0bed5daf14dd",
+    "request_hash": "0x4302453421b1be3e...",
+    ...
+  }
+}
 ```
 
 ## Deployment

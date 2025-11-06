@@ -120,11 +120,30 @@ where
     type Rejection = AuthError;
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        // Extract the token from the authorization header
-        let TypedHeader(Authorization(bearer)) = parts
+        // Try to extract token from Authorization header first
+        let token = if let Ok(TypedHeader(Authorization(bearer))) = parts
             .extract::<TypedHeader<Authorization<Bearer>>>()
             .await
-            .map_err(|_| AuthError::MissingToken)?;
+        {
+            bearer.token().to_string()
+        } else {
+            // Fallback: try to extract token from query parameter (for WebSocket)
+            parts
+                .uri
+                .query()
+                .and_then(|q| {
+                    q.split('&')
+                        .find_map(|pair| {
+                            let mut split = pair.split('=');
+                            if split.next() == Some("token") {
+                                split.next().map(|t| t.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                })
+                .ok_or(AuthError::MissingToken)?
+        };
 
         // Get JWT config from extensions
         let jwt_config = parts
@@ -133,7 +152,7 @@ where
             .ok_or(AuthError::InvalidToken)?;
 
         // Validate the token
-        jwt_config.validate_token(bearer.token())
+        jwt_config.validate_token(&token)
     }
 }
 

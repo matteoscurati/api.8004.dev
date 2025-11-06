@@ -126,7 +126,7 @@ curl https://api-8004-dev.fly.dev/api/status
 
 ### Get JWT Token
 ```bash
-curl -X POST https://api-8004-dev.fly.dev/api/auth/login \
+curl -X POST https://api-8004-dev.fly.dev/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"your-password"}'
 ```

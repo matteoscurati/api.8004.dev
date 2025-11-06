@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ERC-8004 WebSocket Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+        }
+
+        .main {
+            padding: 30px;
+        }
+
+        .login-form {
+            display: grid;
+            gap: 15px;
+            max-width: 500px;
+            margin: 0 auto 30px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        label {
+            font-weight: 600;
+            color: #333;
+        }
+
+        input {
+            padding: 12px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 30px;
+            font-size: 1em;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-connect {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-connect:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-disconnect {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-disconnect:hover:not(:disabled) {
+            background: #c0392b;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn-clear {
+            background: #95a5a6;
+            color: white;
+        }
+
+        .btn-clear:hover {
+            background: #7f8c8d;
+        }
+
+        .status {
+            text-align: center;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .status.disconnected {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .status.connected {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status.connecting {
+            background: #fff3e0;
+            color: #e65100;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            opacity: 0.9;
+            font-size: 0.9em;
+        }
+
+        .events {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+
+        .events h2 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .event-card {
+            background: white;
+            border-left: 4px solid #667eea;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .event-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .event-type {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+
+        .event-time {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .event-details {
+            display: grid;
+            gap: 8px;
+        }
+
+        .event-detail {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 10px;
+            font-size: 0.9em;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .detail-value {
+            color: #333;
+            word-break: break-all;
+            font-family: 'Courier New', monospace;
+        }
+
+        .event-data {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85em;
+            overflow-x: auto;
+        }
+
+        .no-events {
+            text-align: center;
+            color: #888;
+            padding: 40px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 10px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>ERC-8004 WebSocket Test</h1>
+            <p>Real-time Event Stream Monitor</p>
+        </div>
+
+        <div class="main">
+            <form class="login-form" id="loginForm">
+                <div class="form-group">
+                    <label for="apiUrl">API URL</label>
+                    <input type="text" id="apiUrl" value="https://api-8004-dev.fly.dev" required>
+                </div>
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" value="admin" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" value="admin123" required>
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="btn-connect" id="connectBtn">Connect</button>
+                    <button type="button" class="btn-disconnect" id="disconnectBtn" disabled>Disconnect</button>
+                    <button type="button" class="btn-clear" id="clearBtn">Clear Events</button>
+                </div>
+            </form>
+
+            <div class="status disconnected" id="status">
+                Disconnected
+            </div>
+
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="eventCount">0</div>
+                    <div class="stat-label">Events Received</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="uptime">0s</div>
+                    <div class="stat-label">Connection Time</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="eventRate">0.00</div>
+                    <div class="stat-label">Events/sec</div>
+                </div>
+            </div>
+
+            <div class="events">
+                <h2>Event Stream</h2>
+                <div id="eventList">
+                    <div class="no-events">No events yet. Connect to start receiving events.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let eventCount = 0;
+        let connectionTime = null;
+        let uptimeInterval = null;
+
+        const elements = {
+            loginForm: document.getElementById('loginForm'),
+            apiUrl: document.getElementById('apiUrl'),
+            username: document.getElementById('username'),
+            password: document.getElementById('password'),
+            connectBtn: document.getElementById('connectBtn'),
+            disconnectBtn: document.getElementById('disconnectBtn'),
+            clearBtn: document.getElementById('clearBtn'),
+            status: document.getElementById('status'),
+            eventList: document.getElementById('eventList'),
+            eventCountEl: document.getElementById('eventCount'),
+            uptime: document.getElementById('uptime'),
+            eventRate: document.getElementById('eventRate')
+        };
+
+        elements.loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await connect();
+        });
+
+        elements.disconnectBtn.addEventListener('click', disconnect);
+        elements.clearBtn.addEventListener('click', clearEvents);
+
+        async function connect() {
+            const apiUrl = elements.apiUrl.value;
+            const username = elements.username.value;
+            const password = elements.password.value;
+
+            updateStatus('connecting', 'Logging in...');
+            elements.connectBtn.disabled = true;
+
+            try {
+                // Login
+                const response = await fetch(`${apiUrl}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Login failed: ${response.status}`);
+                }
+
+                const { token } = await response.json();
+
+                // Connect WebSocket
+                const wsUrl = apiUrl.replace(/^http/, 'ws');
+                ws = new WebSocket(`${wsUrl}/ws?token=${token}`);
+
+                ws.onopen = () => {
+                    connectionTime = Date.now();
+                    updateStatus('connected', 'Connected');
+                    elements.disconnectBtn.disabled = false;
+                    startUptimeCounter();
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const message = JSON.parse(event.data);
+                        console.log('WS Message:', message);
+
+                        // Handle different message types
+                        if (message.type === 'connected') {
+                            console.log('✅ Server says:', message.message);
+                        } else if (message.type === 'event') {
+                            handleEvent(message.data);
+                        } else {
+                            // Direct event format (backward compatibility)
+                            handleEvent(message);
+                        }
+                    } catch (error) {
+                        console.error('Failed to parse message:', error, event.data);
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    console.error('WebSocket error:', error);
+                    updateStatus('disconnected', 'Error: Connection failed');
+                };
+
+                ws.onclose = () => {
+                    updateStatus('disconnected', 'Disconnected');
+                    elements.connectBtn.disabled = false;
+                    elements.disconnectBtn.disabled = true;
+                    stopUptimeCounter();
+                };
+
+            } catch (error) {
+                updateStatus('disconnected', `Error: ${error.message}`);
+                elements.connectBtn.disabled = false;
+            }
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close(1000, 'User disconnected');
+                ws = null;
+            }
+        }
+
+        function handleEvent(event) {
+            eventCount++;
+            elements.eventCountEl.textContent = eventCount;
+            updateEventRate();
+
+            const eventCard = document.createElement('div');
+            eventCard.className = 'event-card';
+
+            const timestamp = new Date().toLocaleTimeString();
+            const blockTime = new Date(event.block_timestamp * 1000).toLocaleString();
+
+            eventCard.innerHTML = `
+                <div class="event-header">
+                    <span class="event-type">${event.event_type || 'Unknown Event'}</span>
+                    <span class="event-time">${timestamp}</span>
+                </div>
+                <div class="event-details">
+                    <div class="event-detail">
+                        <span class="detail-label">Contract:</span>
+                        <span class="detail-value">${event.contract_address || 'N/A'}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="detail-label">Block:</span>
+                        <span class="detail-value">${event.block_number || 'N/A'}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="detail-label">TX Hash:</span>
+                        <span class="detail-value">${event.transaction_hash || 'N/A'}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="detail-label">Log Index:</span>
+                        <span class="detail-value">${event.log_index !== undefined ? event.log_index : 'N/A'}</span>
+                    </div>
+                    <div class="event-detail">
+                        <span class="detail-label">Block Time:</span>
+                        <span class="detail-value">${blockTime}</span>
+                    </div>
+                </div>
+                ${event.data ? `<div class="event-data">${JSON.stringify(event.data, null, 2)}</div>` : ''}
+            `;
+
+            if (elements.eventList.querySelector('.no-events')) {
+                elements.eventList.innerHTML = '';
+            }
+
+            elements.eventList.insertBefore(eventCard, elements.eventList.firstChild);
+
+            // Keep only last 50 events
+            while (elements.eventList.children.length > 50) {
+                elements.eventList.removeChild(elements.eventList.lastChild);
+            }
+        }
+
+        function clearEvents() {
+            elements.eventList.innerHTML = '<div class="no-events">No events yet. Connect to start receiving events.</div>';
+            eventCount = 0;
+            elements.eventCountEl.textContent = '0';
+            elements.eventRate.textContent = '0.00';
+        }
+
+        function updateStatus(state, message) {
+            elements.status.className = `status ${state}`;
+            elements.status.textContent = message;
+        }
+
+        function startUptimeCounter() {
+            uptimeInterval = setInterval(() => {
+                if (connectionTime) {
+                    const uptime = Math.floor((Date.now() - connectionTime) / 1000);
+                    elements.uptime.textContent = formatUptime(uptime);
+                    updateEventRate();
+                }
+            }, 1000);
+        }
+
+        function stopUptimeCounter() {
+            if (uptimeInterval) {
+                clearInterval(uptimeInterval);
+                uptimeInterval = null;
+            }
+        }
+
+        function updateEventRate() {
+            if (connectionTime && eventCount > 0) {
+                const seconds = (Date.now() - connectionTime) / 1000;
+                const rate = eventCount / seconds;
+                elements.eventRate.textContent = rate.toFixed(2);
+            }
+        }
+
+        function formatUptime(seconds) {
+            const hours = Math.floor(seconds / 3600);
+            const minutes = Math.floor((seconds % 3600) / 60);
+            const secs = seconds % 60;
+
+            if (hours > 0) {
+                return `${hours}h ${minutes}m ${secs}s`;
+            } else if (minutes > 0) {
+                return `${minutes}m ${secs}s`;
+            } else {
+                return `${secs}s`;
+            }
+        }
+    </script>
+</body>
+</html>
