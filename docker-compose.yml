@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: api_8004_dev_postgres
+    environment:
+      POSTGRES_DB: api_8004_dev
+      POSTGRES_USER: indexer
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U indexer"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  indexer:
+    build: .
+    container_name: api_8004_dev_indexer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      # RPC Configuration
+      RPC_URL: ${RPC_URL}
+
+      # Contract Addresses
+      IDENTITY_REGISTRY_ADDRESS: ${IDENTITY_REGISTRY_ADDRESS}
+      REPUTATION_REGISTRY_ADDRESS: ${REPUTATION_REGISTRY_ADDRESS}
+      VALIDATION_REGISTRY_ADDRESS: ${VALIDATION_REGISTRY_ADDRESS}
+
+      # Database
+      DATABASE_URL: postgresql://indexer:${POSTGRES_PASSWORD:-changeme}@postgres:5432/api_8004_dev
+
+      # Server
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+
+      # Indexer
+      STARTING_BLOCK: ${STARTING_BLOCK:-0}
+      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-1000}
+      MAX_EVENTS_IN_MEMORY: ${MAX_EVENTS_IN_MEMORY:-10000}
+
+      # JWT Authentication
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_HOURS: ${JWT_EXPIRATION_HOURS:-24}
+      AUTH_USERNAME: ${AUTH_USERNAME:-admin}
+      AUTH_PASSWORD_HASH: ${AUTH_PASSWORD_HASH}
+
+      # CORS
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-*}
+
+      # Logging
+      RUST_LOG: ${RUST_LOG:-info}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:

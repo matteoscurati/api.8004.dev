@@ -1,0 +1,54 @@
+# Rust
+/target/
+**/*.rs.bk
+*.pdb
+Cargo.lock
+
+# Documentation
+/docs/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+.directory
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+/release/
+/debug/
+
+# Testing
+/coverage/
+
+# Backup files
+*.bak
+*.backup
+*.tmp
+*.temp
+
+# Docker volumes
+postgres_data/

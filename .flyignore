@@ -1,0 +1,48 @@
+# Fly.io ignore file
+# Files and directories to exclude from deployment
+
+# Development
+/target/
+/docs/
+*.md
+!README.md
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+/tests/
+/coverage/
+
+# CI/CD
+.github/
+
+# Documentation
+/scripts/
+
+# Environment (use secrets instead)
+.env
+.env.local
+.env.example
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker (using Dockerfile directly)
+docker-compose.yml
+.dockerignore
+
+# Deployment scripts
+deploy-*.sh
+setup.sh

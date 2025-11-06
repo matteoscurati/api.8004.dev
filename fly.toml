@@ -1,0 +1,52 @@
+# fly.toml app configuration file generated for api-8004-dev
+# Documentation: https://fly.io/docs/reference/configuration/
+
+app = "api-8004-dev"
+primary_region = "ams" # Amsterdam - change to your preferred region
+
+[build]
+  # Use Docker build from Dockerfile
+
+[deploy]
+  release_command = "echo 'Database migrations would run here if configured'"
+
+[env]
+  # Server Configuration
+  SERVER_HOST = "0.0.0.0"
+  SERVER_PORT = "8080"
+
+  # Indexer Configuration
+  POLL_INTERVAL_MS = "12000"
+  MAX_EVENTS_IN_MEMORY = "10000"
+
+  # JWT Configuration
+  JWT_EXPIRATION_HOURS = "24"
+
+  # CORS Configuration
+  CORS_ALLOWED_ORIGINS = "*"
+
+  # Logging
+  RUST_LOG = "info"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "/health"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory_mb = 512
+
+# PostgreSQL Configuration
+# After creating postgres: flyctl postgres attach api-8004-dev-db
