@@ -86,12 +86,13 @@ impl Indexer {
                         info!("Block {}: No events", current_block);
                     }
 
-                    // Update last synced block
+                    current_block += 1;
+
+                    // Update last synced block after incrementing
+                    // This way, on restart we'll reprocess the last block (UNIQUE constraint prevents duplicates)
                     if let Err(e) = self.storage.update_last_synced_block(current_block).await {
                         warn!("Failed to update last synced block: {}", e);
                     }
-
-                    current_block += 1;
 
                     // Add delay between blocks to respect rate limits
                     sleep(self.config.poll_interval).await;
