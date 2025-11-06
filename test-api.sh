@@ -10,8 +10,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-API_URL="https://api-8004-dev.fly.dev"
-JWT_SECRET="5tkqFytIWZfiLV33IcHkSz0B7T5Z2kCHzwFVQV9RMDq5VXLae7vzbB9ulRZfK+7/"
+API_URL="${API_URL:-https://api-8004-dev.fly.dev}"
 
 # Function to display usage
 usage() {

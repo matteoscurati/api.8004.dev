@@ -1,10 +1,28 @@
 #!/bin/bash
 
 # Test all API endpoints
+# Usage: ./test-endpoints.sh <password>
+#
+# Or set environment variable:
+#   export API_PASSWORD="your-password"
+#   ./test-endpoints.sh
+
 set -e
 
-API_URL="https://api-8004-dev.fly.dev"
-PASSWORD="5tkqFytIWZfiLV33IcHkSz0B7T5Z2kCHzwFVQV9RMDq5VXLae7vzbB9ulRZfK+7/"
+API_URL="${API_URL:-https://api-8004-dev.fly.dev}"
+PASSWORD="${1:-$API_PASSWORD}"
+
+if [ -z "$PASSWORD" ]; then
+    echo "❌ Error: Password required!"
+    echo ""
+    echo "Usage: $0 <password>"
+    echo ""
+    echo "Or set environment variable:"
+    echo "  export API_PASSWORD='your-password'"
+    echo "  $0"
+    echo ""
+    exit 1
+fi
 
 echo "========================================="
 echo "Testing API Endpoints"

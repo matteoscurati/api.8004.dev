@@ -52,3 +52,4 @@ logs/
 
 # Docker volumes
 postgres_data/
+.env.test

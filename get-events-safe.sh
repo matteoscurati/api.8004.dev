@@ -1,29 +1,40 @@
 #!/bin/bash
 
-# Script to fetch all events from API 8004.dev
-# Usage: ./get-all-events.sh [username] [password] [api-url] [limit]
+# Safe script that reads credentials from environment variables
+# Usage:
+#   1. Create .env.test file (copy from .env.test.example)
+#   2. source .env.test
+#   3. ./get-events-safe.sh
 
 set -e
 
-# Configuration
-USERNAME="${1:-admin}"
-PASSWORD="${2}"
-API_URL="${3:-https://api-8004-dev.fly.dev}"
-LIMIT="${4:-10000}"
-
-echo "🔐 Logging in as '$USERNAME'..."
-
-# Check if password is provided
-if [ -z "$PASSWORD" ]; then
-    echo "❌ Error: Password required!"
+# Check if environment variables are set
+if [ -z "$API_PASSWORD" ]; then
+    echo "❌ Error: API_PASSWORD not set!"
     echo ""
-    echo "Usage: $0 <username> <password> [api-url] [limit]"
+    echo "Please set environment variables first:"
     echo ""
-    echo "Example:"
-    echo "  $0 admin 'your-password' https://api-8004-dev.fly.dev 10000"
+    echo "  1. Copy .env.test.example to .env.test:"
+    echo "     cp .env.test.example .env.test"
+    echo ""
+    echo "  2. Edit .env.test with your credentials"
+    echo ""
+    echo "  3. Load the environment variables:"
+    echo "     source .env.test"
+    echo ""
+    echo "  4. Run this script again:"
+    echo "     ./get-events-safe.sh"
     echo ""
     exit 1
 fi
+
+# Use environment variables with defaults
+API_URL="${API_URL:-https://api-8004-dev.fly.dev}"
+USERNAME="${API_USERNAME:-admin}"
+PASSWORD="$API_PASSWORD"
+LIMIT="${EVENT_LIMIT:-10000}"
+
+echo "🔐 Logging in as '$USERNAME'..."
 
 # Login and get token
 LOGIN_RESPONSE=$(curl -s -X POST "$API_URL/login" \
@@ -36,7 +47,7 @@ if echo "$LOGIN_RESPONSE" | grep -q "token"; then
   echo "✅ Login successful!"
 else
   echo "❌ Login failed!"
-  echo "$LOGIN_RESPONSE"
+  echo "$LOGIN_RESPONSE" | python3 -m json.tool 2>/dev/null || echo "$LOGIN_RESPONSE"
   exit 1
 fi
 
