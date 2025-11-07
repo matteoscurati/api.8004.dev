@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Script to fetch all events from API 8004.dev
-# Usage: ./get-all-events.sh [username] [password] [api-url] [limit]
+# Usage: ./get-all-events.sh [username] [password] [api-url] [chain-id] [limit]
 
 set -e
 
@@ -9,7 +9,8 @@ set -e
 USERNAME="${1:-admin}"
 PASSWORD="${2}"
 API_URL="${3:-https://api-8004-dev.fly.dev}"
-LIMIT="${4:-10000}"
+CHAIN_ID="${4:-11155111}"
+LIMIT="${5:-10000}"
 
 echo "🔐 Logging in as '$USERNAME'..."
 
@@ -17,10 +18,12 @@ echo "🔐 Logging in as '$USERNAME'..."
 if [ -z "$PASSWORD" ]; then
     echo "❌ Error: Password required!"
     echo ""
-    echo "Usage: $0 <username> <password> [api-url] [limit]"
+    echo "Usage: $0 <username> <password> [api-url] [chain-id] [limit]"
     echo ""
     echo "Example:"
-    echo "  $0 admin 'your-password' https://api-8004-dev.fly.dev 10000"
+    echo "  $0 admin 'your-password' https://api-8004-dev.fly.dev 11155111 10000"
+    echo ""
+    echo "Default chain-id: 11155111 (Sepolia)"
     echo ""
     exit 1
 fi
@@ -41,11 +44,11 @@ else
 fi
 
 echo ""
-echo "📡 Fetching events (limit: $LIMIT)..."
+echo "📡 Fetching events from chain $CHAIN_ID (limit: $LIMIT)..."
 
 # Fetch events
 EVENTS_RESPONSE=$(curl -s -H "Authorization: Bearer $TOKEN" \
-  "$API_URL/events?limit=$LIMIT")
+  "$API_URL/events?chain_id=$CHAIN_ID&limit=$LIMIT")
 
 # Check if jq is available for pretty printing
 if command -v jq &> /dev/null; then
