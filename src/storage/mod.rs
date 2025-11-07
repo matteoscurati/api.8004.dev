@@ -113,6 +113,18 @@ impl Storage {
             qb.push_bind(event_type);
         }
 
+        // Filter by category (maps to multiple event types)
+        if let Some(event_types) = query.event_types_for_category() {
+            if !event_types.is_empty() {
+                qb.push(" AND event_type IN (");
+                let mut separated = qb.separated(", ");
+                for event_type in event_types {
+                    separated.push_bind(event_type);
+                }
+                separated.push_unseparated(")");
+            }
+        }
+
         // Filter by agent_id (searches within JSONB event_data)
         if let Some(agent_id) = &query.agent_id {
             qb.push(" AND event_data->>'agent_id' = ");
@@ -216,6 +228,18 @@ impl Storage {
             qb.push_bind(event_type);
         }
 
+        // Filter by category (maps to multiple event types)
+        if let Some(event_types) = query.event_types_for_category() {
+            if !event_types.is_empty() {
+                qb.push(" AND event_type IN (");
+                let mut separated = qb.separated(", ");
+                for event_type in event_types {
+                    separated.push_bind(event_type);
+                }
+                separated.push_unseparated(")");
+            }
+        }
+
         // Filter by agent_id
         if let Some(agent_id) = &query.agent_id {
             qb.push(" AND event_data->>'agent_id' = ");
@@ -259,6 +283,72 @@ impl Storage {
     pub fn cache_stats(&self) -> (usize, usize) {
         (self.cache.len(), self.max_cache_size)
     }
+
+    /// Get event statistics by category
+    /// Returns counts for all categories: all, agents, metadata, validation, feedback
+    pub async fn get_category_stats(&self, chain_id: u64) -> Result<CategoryStats> {
+        // Count all events for this chain
+        let all_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE chain_id = $1"
+        )
+        .bind(chain_id as i64)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Count agents events (Registered)
+        let agents_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE chain_id = $1 AND event_type = 'Registered'"
+        )
+        .bind(chain_id as i64)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Count metadata events (MetadataSet, UriUpdated)
+        let metadata_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE chain_id = $1 AND event_type IN ('MetadataSet', 'UriUpdated')"
+        )
+        .bind(chain_id as i64)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Count validation events (ValidationRequest, ValidationResponse)
+        let validation_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE chain_id = $1 AND event_type IN ('ValidationRequest', 'ValidationResponse')"
+        )
+        .bind(chain_id as i64)
+        .fetch_one(&self.pool)
+        .await?;
+
+        // Count feedback events (NewFeedback, FeedbackRevoked, ResponseAppended)
+        let feedback_count: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM events WHERE chain_id = $1 AND event_type IN ('NewFeedback', 'FeedbackRevoked', 'ResponseAppended')"
+        )
+        .bind(chain_id as i64)
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(CategoryStats {
+            all: all_count,
+            agents: agents_count,
+            capabilities: 0, // Not implemented yet
+            metadata: metadata_count,
+            validation: validation_count,
+            feedback: feedback_count,
+            payments: 0, // Not implemented yet
+        })
+    }
+}
+
+/// Statistics for event categories
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct CategoryStats {
+    pub all: i64,
+    pub agents: i64,
+    pub capabilities: i64,
+    pub metadata: i64,
+    pub validation: i64,
+    pub feedback: i64,
+    pub payments: i64,
 }
 
 #[cfg(test)]
@@ -315,6 +405,7 @@ mod tests {
             contract: Some("0x1234".to_string()),
             event_type: Some("Registered".to_string()),
             agent_id: Some("42".to_string()),
+            category: None,
             offset: Some(10),
             limit: Some(50),
         };
@@ -322,6 +413,7 @@ mod tests {
         let cloned = query.clone();
         assert_eq!(cloned.chain_id, 11155111);
         assert_eq!(cloned.agent_id, Some("42".to_string()));
+        assert_eq!(cloned.category, None);
         assert_eq!(cloned.offset, Some(10));
         assert_eq!(cloned.limit, Some(50));
     }

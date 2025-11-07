@@ -248,6 +248,9 @@ async fn get_recent_activity(
     // Get events for current page
     let events = state.storage.get_recent_events(query.clone()).await?;
 
+    // Get category statistics
+    let stats = state.storage.get_category_stats(query.chain_id).await?;
+
     // Calculate pagination metadata
     let limit = query.limit.unwrap_or(1000);
     let offset = query.offset.unwrap_or(0);
@@ -262,6 +265,7 @@ async fn get_recent_activity(
         "success": true,
         "count": events.len(),
         "total": total,
+        "stats": stats,
         "pagination": {
             "offset": offset,
             "limit": limit,

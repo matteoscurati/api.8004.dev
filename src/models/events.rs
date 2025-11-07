@@ -160,11 +160,29 @@ pub struct EventQuery {
     /// Filter by agent ID
     pub agent_id: Option<String>,
 
+    /// Filter by category (agents, metadata, validation, feedback, all)
+    pub category: Option<String>,
+
     /// Offset for pagination (number of records to skip)
     pub offset: Option<i64>,
 
     /// Limit number of results
     pub limit: Option<i64>,
+}
+
+impl EventQuery {
+    /// Get event types for a given category
+    /// Returns None if category is "all" or not specified
+    pub fn event_types_for_category(&self) -> Option<Vec<&'static str>> {
+        match self.category.as_deref() {
+            Some("agents") => Some(vec!["Registered"]),
+            Some("metadata") => Some(vec!["MetadataSet", "UriUpdated"]),
+            Some("validation") => Some(vec!["ValidationRequest", "ValidationResponse"]),
+            Some("feedback") => Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"]),
+            Some("all") | None => None, // No filter
+            _ => None, // Unknown category, no filter
+        }
+    }
 }
 
 impl Default for EventQuery {
@@ -176,6 +194,7 @@ impl Default for EventQuery {
             contract: None,
             event_type: None,
             agent_id: None,
+            category: None,
             offset: None,
             limit: Some(1000),
         }
@@ -320,5 +339,113 @@ mod tests {
 
         assert_eq!(deserialized.agent_id, "456");
         assert_eq!(deserialized.key, "name");
+    }
+
+    #[test]
+    fn test_category_mapping_agents() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("agents".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec!["Registered"]));
+    }
+
+    #[test]
+    fn test_category_mapping_metadata() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("metadata".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec!["MetadataSet", "UriUpdated"]));
+    }
+
+    #[test]
+    fn test_category_mapping_validation() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("validation".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec!["ValidationRequest", "ValidationResponse"]));
+    }
+
+    #[test]
+    fn test_category_mapping_feedback() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("feedback".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"]));
+    }
+
+    #[test]
+    fn test_category_mapping_all() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("all".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, None); // No filter for "all"
+    }
+
+    #[test]
+    fn test_category_mapping_none() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: None,
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, None); // No filter when category is None
     }
 }
