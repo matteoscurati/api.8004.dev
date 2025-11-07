@@ -172,15 +172,18 @@ pub struct EventQuery {
 
 impl EventQuery {
     /// Get event types for a given category
-    /// Returns None if category is "all" or not specified
+    /// Returns None if category is "all" or not specified (no filter)
+    /// Returns Some(empty vec) for categories with no implemented events (empty result)
     pub fn event_types_for_category(&self) -> Option<Vec<&'static str>> {
         match self.category.as_deref() {
             Some("agents") => Some(vec!["Registered"]),
             Some("metadata") => Some(vec!["MetadataSet", "UriUpdated"]),
             Some("validation") => Some(vec!["ValidationRequest", "ValidationResponse"]),
             Some("feedback") => Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"]),
+            Some("capabilities") => Some(vec![]), // Not implemented yet - return empty
+            Some("payments") => Some(vec![]), // Not implemented yet - return empty
             Some("all") | None => None, // No filter
-            _ => None, // Unknown category, no filter
+            _ => Some(vec![]), // Unknown category - return empty to be safe
         }
     }
 }
@@ -447,5 +450,59 @@ mod tests {
 
         let event_types = query.event_types_for_category();
         assert_eq!(event_types, None); // No filter when category is None
+    }
+
+    #[test]
+    fn test_category_mapping_capabilities() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("capabilities".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec![])); // Empty vec - no events yet
+    }
+
+    #[test]
+    fn test_category_mapping_payments() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("payments".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec![])); // Empty vec - no events yet
+    }
+
+    #[test]
+    fn test_category_mapping_unknown() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            category: Some("unknown_category".to_string()),
+            blocks: None,
+            hours: None,
+            contract: None,
+            event_type: None,
+            agent_id: None,
+            offset: None,
+            limit: None,
+        };
+
+        let event_types = query.event_types_for_category();
+        assert_eq!(event_types, Some(vec![])); // Empty vec for unknown category
     }
 }

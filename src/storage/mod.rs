@@ -115,7 +115,11 @@ impl Storage {
 
         // Filter by category (maps to multiple event types)
         if let Some(event_types) = query.event_types_for_category() {
-            if !event_types.is_empty() {
+            if event_types.is_empty() {
+                // Empty vec means category exists but has no events yet (capabilities, payments)
+                // Add impossible condition to return zero results
+                qb.push(" AND 1 = 0");
+            } else {
                 qb.push(" AND event_type IN (");
                 let mut separated = qb.separated(", ");
                 for event_type in event_types {
@@ -230,7 +234,11 @@ impl Storage {
 
         // Filter by category (maps to multiple event types)
         if let Some(event_types) = query.event_types_for_category() {
-            if !event_types.is_empty() {
+            if event_types.is_empty() {
+                // Empty vec means category exists but has no events yet (capabilities, payments)
+                // Add impossible condition to return zero results
+                qb.push(" AND 1 = 0");
+            } else {
                 qb.push(" AND event_type IN (");
                 let mut separated = qb.separated(", ");
                 for event_type in event_types {
