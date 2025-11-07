@@ -3,10 +3,7 @@ mod auth;
 mod config;
 mod contracts;
 mod indexer;
-mod metrics;
 mod models;
-mod rate_limit;
-mod retry;
 mod storage;
 
 use anyhow::Result;
@@ -50,7 +47,9 @@ async fn main() -> Result<()> {
     info!("Starting ERC-8004 Indexer");
 
     // Initialize metrics
-    let metrics_handle = metrics::init_metrics();
+    let metrics_handle = metrics_exporter_prometheus::PrometheusBuilder::new()
+        .install_recorder()
+        .expect("Failed to install Prometheus recorder");
     info!("Metrics initialized");
 
     // Load configuration
@@ -99,6 +98,7 @@ async fn main() -> Result<()> {
     // Create indexer
     let indexer_config = IndexerConfig {
         rpc_url: config.rpc_url.clone(),
+        chain_id: config.chain_id,
         identity_registry: config.identity_registry,
         reputation_registry: config.reputation_registry,
         validation_registry: config.validation_registry,

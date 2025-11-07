@@ -38,13 +38,14 @@ impl Storage {
         sqlx::query(
             r#"
             INSERT INTO events (
-                block_number, block_timestamp, transaction_hash, log_index,
+                chain_id, block_number, block_timestamp, transaction_hash, log_index,
                 contract_address, event_type, event_data
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            ON CONFLICT (transaction_hash, log_index) DO NOTHING
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (chain_id, transaction_hash, log_index) DO NOTHING
             "#,
         )
+        .bind(event.chain_id as i64)
         .bind(event.block_number as i64)
         .bind(event.block_timestamp)
         .bind(&event.transaction_hash)
@@ -70,66 +71,70 @@ impl Storage {
 
     /// Get recent events based on query parameters
     pub async fn get_recent_events(&self, query: EventQuery) -> Result<Vec<Event>> {
-        // Build the WHERE clauses
-        let mut where_clauses = vec!["1=1".to_string()];
+        // Start building the query
+        let mut qb = sqlx::QueryBuilder::new(
+            r#"
+            SELECT
+                id, chain_id, block_number, block_timestamp, transaction_hash, log_index,
+                contract_address, event_type, event_data, created_at
+            FROM events
+            WHERE 1=1
+            "#,
+        );
+
+        // Filter by chain_id (REQUIRED for multi-chain support)
+        qb.push(" AND chain_id = ");
+        qb.push_bind(query.chain_id as i64);
 
         // Calculate cutoff block if needed
-        let cutoff_block = if query.hours.is_some() || query.blocks.is_some() {
-            if let Some(hours) = query.hours {
-                // Get events within time window
-                let cutoff = Utc::now() - Duration::hours(hours as i64);
-                where_clauses.push(format!("block_timestamp >= '{}'", cutoff.format("%Y-%m-%d %H:%M:%S")));
-                None
-            } else if let Some(blocks) = query.blocks {
-                // Get current block and calculate cutoff
-                let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
-                    .fetch_one(&self.pool)
-                    .await
-                    .unwrap_or(0);
-
-                let cutoff = current_block.saturating_sub(blocks as i64);
-                Some(cutoff)
-            } else {
-                None
-            }
-        } else {
-            None
-        };
-
-        if let Some(cutoff) = cutoff_block {
-            where_clauses.push(format!("block_number >= {}", cutoff));
+        if let Some(hours) = query.hours {
+            let cutoff = Utc::now() - Duration::hours(hours as i64);
+            qb.push(" AND block_timestamp >= ");
+            qb.push_bind(cutoff);
+        } else if let Some(blocks) = query.blocks {
+            let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
+            let cutoff = current_block.saturating_sub(blocks as i64);
+            qb.push(" AND block_number >= ");
+            qb.push_bind(cutoff);
         }
 
         // Filter by contract
         if let Some(contract) = &query.contract {
-            where_clauses.push(format!("contract_address = '{}'", contract.to_lowercase()));
+            qb.push(" AND contract_address = ");
+            qb.push_bind(contract.to_lowercase());
         }
 
         // Filter by event type
         if let Some(event_type) = &query.event_type {
-            where_clauses.push(format!("event_type = '{}'", event_type));
+            qb.push(" AND event_type = ");
+            qb.push_bind(event_type);
         }
 
-        // Build final SQL
-        let where_clause = where_clauses.join(" AND ");
-        let limit_clause = query.limit.map(|l| format!(" LIMIT {}", l)).unwrap_or_default();
+        // Filter by agent_id (searches within JSONB event_data)
+        if let Some(agent_id) = &query.agent_id {
+            qb.push(" AND event_data->>'agent_id' = ");
+            qb.push_bind(agent_id);
+        }
 
-        let sql = format!(
-            r#"
-            SELECT
-                id, block_number, block_timestamp, transaction_hash, log_index,
-                contract_address, event_type, event_data, created_at
-            FROM events
-            WHERE {}
-            ORDER BY block_number DESC, log_index DESC
-            {}
-            "#,
-            where_clause,
-            limit_clause
-        );
+        // Add ordering
+        qb.push(" ORDER BY block_number DESC, log_index DESC");
 
-        // Execute query
-        let rows = sqlx::query(&sql).fetch_all(&self.pool).await?;
+        // Add limit and offset for pagination
+        if let Some(limit) = query.limit {
+            qb.push(" LIMIT ");
+            qb.push_bind(limit);
+        }
+
+        if let Some(offset) = query.offset {
+            qb.push(" OFFSET ");
+            qb.push_bind(offset);
+        }
+
+        // Execute query with proper parameter binding
+        let rows = qb.build().fetch_all(&self.pool).await?;
 
         // Parse results
         let events: Vec<Event> = rows
@@ -153,6 +158,7 @@ impl Storage {
 
                 Some(Event {
                     id: Some(row.get("id")),
+                    chain_id: row.get::<i64, _>("chain_id") as u64,
                     block_number: row.get::<i64, _>("block_number") as u64,
                     block_timestamp: row.get("block_timestamp"),
                     transaction_hash: row.get("transaction_hash"),
@@ -166,6 +172,61 @@ impl Storage {
             .collect();
 
         Ok(events)
+    }
+
+    /// Count total events matching query (for pagination metadata)
+    pub async fn count_events(&self, query: EventQuery) -> Result<i64> {
+        // Build the count query with same filters as get_recent_events
+        let mut qb = sqlx::QueryBuilder::new(
+            r#"
+            SELECT COUNT(*) as total
+            FROM events
+            WHERE 1=1
+            "#,
+        );
+
+        // Filter by chain_id (REQUIRED for multi-chain support)
+        qb.push(" AND chain_id = ");
+        qb.push_bind(query.chain_id as i64);
+
+        // Calculate cutoff block if needed
+        if let Some(hours) = query.hours {
+            let cutoff = Utc::now() - Duration::hours(hours as i64);
+            qb.push(" AND block_timestamp >= ");
+            qb.push_bind(cutoff);
+        } else if let Some(blocks) = query.blocks {
+            let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
+            let cutoff = current_block.saturating_sub(blocks as i64);
+            qb.push(" AND block_number >= ");
+            qb.push_bind(cutoff);
+        }
+
+        // Filter by contract
+        if let Some(contract) = &query.contract {
+            qb.push(" AND contract_address = ");
+            qb.push_bind(contract.to_lowercase());
+        }
+
+        // Filter by event type
+        if let Some(event_type) = &query.event_type {
+            qb.push(" AND event_type = ");
+            qb.push_bind(event_type);
+        }
+
+        // Filter by agent_id
+        if let Some(agent_id) = &query.agent_id {
+            qb.push(" AND event_data->>'agent_id' = ");
+            qb.push_bind(agent_id);
+        }
+
+        // Execute count query
+        let row = qb.build().fetch_one(&self.pool).await?;
+        let total: i64 = row.get("total");
+
+        Ok(total)
     }
 
     /// Update the last synced block
@@ -197,5 +258,93 @@ impl Storage {
     /// Get cache statistics
     pub fn cache_stats(&self) -> (usize, usize) {
         (self.cache.len(), self.max_cache_size)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::models::*;
+    use chrono::Utc;
+
+    fn create_test_event(chain_id: u64, agent_id: &str, block_number: u64, tx_hash: &str, log_index: u32) -> Event {
+        Event {
+            id: None,
+            chain_id,
+            block_number,
+            block_timestamp: Utc::now(),
+            transaction_hash: tx_hash.to_string(),
+            log_index,
+            contract_address: "0x1234".to_string(),
+            event_type: EventType::Registered,
+            event_data: EventData::Registered(RegisteredData {
+                agent_id: agent_id.to_string(),
+                token_uri: "https://example.com".to_string(),
+                owner: "0x5678".to_string(),
+            }),
+            created_at: None,
+        }
+    }
+
+    #[test]
+    fn test_cache_key_format() {
+        let event = create_test_event(11155111, "1", 100, "0xabc", 0);
+        let cache_key = format!("{}:{}", event.transaction_hash, event.log_index);
+        assert_eq!(cache_key, "0xabc:0");
+    }
+
+    #[test]
+    fn test_cache_key_uniqueness() {
+        let event1 = create_test_event(11155111, "1", 100, "0xabc", 0);
+        let event2 = create_test_event(11155111, "1", 100, "0xabc", 1);
+        let event3 = create_test_event(11155111, "1", 100, "0xdef", 0);
+
+        let key1 = format!("{}:{}", event1.transaction_hash, event1.log_index);
+        let key2 = format!("{}:{}", event2.transaction_hash, event2.log_index);
+        let key3 = format!("{}:{}", event3.transaction_hash, event3.log_index);
+
+        assert_ne!(key1, key2); // Same tx, different log_index
+        assert_ne!(key1, key3); // Different tx, same log_index
+    }
+
+    #[test]
+    fn test_event_query_clone() {
+        let query = EventQuery {
+            chain_id: 11155111,
+            blocks: Some(100),
+            hours: None,
+            contract: Some("0x1234".to_string()),
+            event_type: Some("Registered".to_string()),
+            agent_id: Some("42".to_string()),
+            offset: Some(10),
+            limit: Some(50),
+        };
+
+        let cloned = query.clone();
+        assert_eq!(cloned.chain_id, 11155111);
+        assert_eq!(cloned.agent_id, Some("42".to_string()));
+        assert_eq!(cloned.offset, Some(10));
+        assert_eq!(cloned.limit, Some(50));
+    }
+
+    #[test]
+    fn test_event_with_chain_id() {
+        let event_sepolia = create_test_event(11155111, "1", 100, "0xabc", 0);
+        let event_mainnet = create_test_event(1, "1", 100, "0xabc", 0);
+
+        assert_eq!(event_sepolia.chain_id, 11155111);
+        assert_eq!(event_mainnet.chain_id, 1);
+        assert_ne!(event_sepolia.chain_id, event_mainnet.chain_id);
+    }
+
+    #[test]
+    fn test_event_data_agent_id() {
+        let event = create_test_event(11155111, "42", 100, "0xabc", 0);
+
+        match &event.event_data {
+            EventData::Registered(data) => {
+                assert_eq!(data.agent_id, "42");
+            }
+            _ => panic!("Expected Registered event data"),
+        }
     }
 }

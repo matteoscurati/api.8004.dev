@@ -10,6 +10,7 @@ use tracing::warn;
 pub struct Config {
     // Ethereum
     pub rpc_url: String,
+    pub chain_id: u64,
     pub identity_registry: Address,
     pub reputation_registry: Address,
     pub validation_registry: Address,
@@ -77,6 +78,11 @@ impl Config {
 
         let rpc_url = env::var("RPC_URL").context("RPC_URL not set")?;
 
+        let chain_id = env::var("CHAIN_ID")
+            .unwrap_or_else(|_| "11155111".to_string()) // Default to Sepolia
+            .parse()
+            .context("Invalid CHAIN_ID")?;
+
         let identity_registry = Address::from_str(
             &env::var("IDENTITY_REGISTRY_ADDRESS")
                 .context("IDENTITY_REGISTRY_ADDRESS not set")?,
@@ -124,6 +130,7 @@ impl Config {
 
         Ok(Self {
             rpc_url,
+            chain_id,
             identity_registry,
             reputation_registry,
             validation_registry,

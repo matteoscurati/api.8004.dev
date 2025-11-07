@@ -23,6 +23,7 @@ use tracing::{debug, error, info, warn};
 #[derive(Debug, Clone)]
 pub struct IndexerConfig {
     pub rpc_url: String,
+    pub chain_id: u64,
     pub identity_registry: Address,
     pub reputation_registry: Address,
     pub validation_registry: Address,
@@ -216,6 +217,7 @@ impl Indexer {
         if let Ok(decoded) = IdentityRegistry::Registered::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -235,6 +237,7 @@ impl Indexer {
         if let Ok(decoded) = IdentityRegistry::MetadataSet::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -255,6 +258,7 @@ impl Indexer {
         if let Ok(decoded) = IdentityRegistry::UriUpdated::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -288,6 +292,7 @@ impl Indexer {
         if let Ok(decoded) = ReputationRegistry::NewFeedback::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -311,6 +316,7 @@ impl Indexer {
         if let Ok(decoded) = ReputationRegistry::FeedbackRevoked::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -330,6 +336,7 @@ impl Indexer {
         if let Ok(decoded) = ReputationRegistry::ResponseAppended::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -366,6 +373,7 @@ impl Indexer {
         if let Ok(decoded) = ValidationRegistry::ValidationRequest::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),
@@ -386,6 +394,7 @@ impl Indexer {
         if let Ok(decoded) = ValidationRegistry::ValidationResponse::decode_log(&prim_log, true) {
             return Ok(Event {
                 id: None,
+                chain_id: self.config.chain_id,
                 block_number,
                 block_timestamp,
                 transaction_hash: tx_hash.to_string(),

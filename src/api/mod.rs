@@ -241,11 +241,33 @@ async fn get_recent_activity(
     Query(query): Query<EventQuery>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     info!("User '{}' requested events", claims.sub);
-    let events = state.storage.get_recent_events(query).await?;
+
+    // Get total count for pagination metadata
+    let total = state.storage.count_events(query.clone()).await?;
+
+    // Get events for current page
+    let events = state.storage.get_recent_events(query.clone()).await?;
+
+    // Calculate pagination metadata
+    let limit = query.limit.unwrap_or(1000);
+    let offset = query.offset.unwrap_or(0);
+    let has_more = (offset + events.len() as i64) < total;
+    let next_offset = if has_more {
+        Some(offset + limit)
+    } else {
+        None
+    };
 
     Ok(Json(json!({
         "success": true,
         "count": events.len(),
+        "total": total,
+        "pagination": {
+            "offset": offset,
+            "limit": limit,
+            "has_more": has_more,
+            "next_offset": next_offset
+        },
         "events": events
     })))
 }

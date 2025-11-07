@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Event {
     pub id: Option<i64>,
+    pub chain_id: u64,
     pub block_number: u64,
     pub block_timestamp: DateTime<Utc>,
     pub transaction_hash: String,
@@ -141,6 +142,9 @@ pub struct ValidationResponseData {
 /// Query parameters for filtering events
 #[derive(Debug, Clone, Deserialize)]
 pub struct EventQuery {
+    /// Filter by chain ID (REQUIRED for multi-chain support)
+    pub chain_id: u64,
+
     /// Number of blocks to look back
     pub blocks: Option<u64>,
 
@@ -153,6 +157,12 @@ pub struct EventQuery {
     /// Filter by event type
     pub event_type: Option<String>,
 
+    /// Filter by agent ID
+    pub agent_id: Option<String>,
+
+    /// Offset for pagination (number of records to skip)
+    pub offset: Option<i64>,
+
     /// Limit number of results
     pub limit: Option<i64>,
 }
@@ -160,11 +170,155 @@ pub struct EventQuery {
 impl Default for EventQuery {
     fn default() -> Self {
         Self {
+            chain_id: 11155111, // Sepolia as default
             blocks: Some(100),
             hours: None,
             contract: None,
             event_type: None,
+            agent_id: None,
+            offset: None,
             limit: Some(1000),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_event_type_as_str() {
+        assert_eq!(EventType::Registered.as_str(), "Registered");
+        assert_eq!(EventType::MetadataSet.as_str(), "MetadataSet");
+        assert_eq!(EventType::UriUpdated.as_str(), "UriUpdated");
+        assert_eq!(EventType::NewFeedback.as_str(), "NewFeedback");
+        assert_eq!(EventType::FeedbackRevoked.as_str(), "FeedbackRevoked");
+        assert_eq!(EventType::ResponseAppended.as_str(), "ResponseAppended");
+        assert_eq!(EventType::ValidationRequest.as_str(), "ValidationRequest");
+        assert_eq!(EventType::ValidationResponse.as_str(), "ValidationResponse");
+    }
+
+    #[test]
+    fn test_event_query_default_values() {
+        let query = EventQuery::default();
+        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.blocks, Some(100));
+        assert_eq!(query.hours, None);
+        assert_eq!(query.contract, None);
+        assert_eq!(query.event_type, None);
+        assert_eq!(query.agent_id, None);
+        assert_eq!(query.offset, None);
+        assert_eq!(query.limit, Some(1000));
+    }
+
+    #[test]
+    fn test_event_query_deserialize_chain_id_required() {
+        use serde_urlencoded;
+
+        // Should succeed with chain_id
+        let query_string = "chain_id=11155111&limit=10";
+        let result: Result<EventQuery, _> = serde_urlencoded::from_str(query_string);
+        assert!(result.is_ok());
+        let query = result.unwrap();
+        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.limit, Some(10));
+
+        // Should fail without chain_id
+        let query_string = "limit=10&offset=0";
+        let result: Result<EventQuery, _> = serde_urlencoded::from_str(query_string);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_event_query_deserialize_pagination() {
+        use serde_urlencoded;
+
+        let query_string = "chain_id=11155111&limit=50&offset=100";
+        let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
+
+        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.limit, Some(50));
+        assert_eq!(query.offset, Some(100));
+    }
+
+    #[test]
+    fn test_event_query_deserialize_all_filters() {
+        use serde_urlencoded;
+
+        let query_string = "chain_id=1&blocks=200&contract=0x1234&event_type=Registered&agent_id=42&limit=25&offset=50";
+        let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
+
+        assert_eq!(query.chain_id, 1);
+        assert_eq!(query.blocks, Some(200));
+        assert_eq!(query.contract, Some("0x1234".to_string()));
+        assert_eq!(query.event_type, Some("Registered".to_string()));
+        assert_eq!(query.agent_id, Some("42".to_string()));
+        assert_eq!(query.limit, Some(25));
+        assert_eq!(query.offset, Some(50));
+    }
+
+    #[test]
+    fn test_event_serialization() {
+        use chrono::Utc;
+
+        let event = Event {
+            id: Some(1),
+            chain_id: 11155111,
+            block_number: 12345,
+            block_timestamp: Utc::now(),
+            transaction_hash: "0xabcd".to_string(),
+            log_index: 0,
+            contract_address: "0x1234".to_string(),
+            event_type: EventType::Registered,
+            event_data: EventData::Registered(RegisteredData {
+                agent_id: "1".to_string(),
+                token_uri: "https://example.com".to_string(),
+                owner: "0x5678".to_string(),
+            }),
+            created_at: Some(Utc::now()),
+        };
+
+        // Test serialization
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"chain_id\":11155111"));
+        assert!(json.contains("\"block_number\":12345"));
+        assert!(json.contains("\"agent_id\":\"1\""));
+
+        // Test deserialization
+        let deserialized: Event = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.chain_id, 11155111);
+        assert_eq!(deserialized.block_number, 12345);
+    }
+
+    #[test]
+    fn test_registered_data_serialization() {
+        let data = RegisteredData {
+            agent_id: "123".to_string(),
+            token_uri: "https://example.com/token".to_string(),
+            owner: "0xowner".to_string(),
+        };
+
+        let json = serde_json::to_string(&data).unwrap();
+        let deserialized: RegisteredData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.agent_id, "123");
+        assert_eq!(deserialized.token_uri, "https://example.com/token");
+        assert_eq!(deserialized.owner, "0xowner");
+    }
+
+    #[test]
+    fn test_metadata_set_data_serialization() {
+        let data = MetadataSetData {
+            agent_id: "456".to_string(),
+            indexed_key: "0xkey".to_string(),
+            key: "name".to_string(),
+            value: "0xvalue".to_string(),
+        };
+
+        let json = serde_json::to_string(&data).unwrap();
+        let deserialized: MetadataSetData = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(deserialized.agent_id, "456");
+        assert_eq!(deserialized.key, "name");
     }
 }

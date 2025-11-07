@@ -239,11 +239,14 @@ curl -X POST http://localhost:8080/login \
 Query recent events with flexible filters
 
 **Query Parameters:**
+- `chain_id` (**required**): Blockchain chain ID (e.g., 1 for Ethereum, 11155111 for Sepolia)
 - `blocks` (optional): Number of blocks to look back (default: 100)
 - `hours` (optional): Number of hours to look back (overrides `blocks`)
 - `contract` (optional): Filter by contract address
 - `event_type` (optional): Filter by event type
-- `limit` (optional): Maximum number of results (default: 1000)
+- `agent_id` (optional): Filter by agent ID
+- `offset` (optional): Number of records to skip for pagination (default: 0)
+- `limit` (optional): Maximum number of results per page (default: 1000)
 
 **Examples:**
 
@@ -251,32 +254,63 @@ Query recent events with flexible filters
 # Set token for convenience
 TOKEN="your_jwt_token_here"
 
-# Get last 100 blocks of events
+# Get last 100 blocks of events on Sepolia (chain_id is REQUIRED)
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/events"
+  "http://localhost:8080/events?chain_id=11155111"
 
-# Get events from last 24 hours
+# Get events from last 24 hours on Sepolia
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/events?hours=24"
+  "http://localhost:8080/events?chain_id=11155111&hours=24"
 
-# Get last 5 events
+# Get last 5 events on Sepolia
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/events?limit=5"
+  "http://localhost:8080/events?chain_id=11155111&limit=5"
 
-# Get NewFeedback events only
+# Get NewFeedback events only on Sepolia
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/events?event_type=NewFeedback"
+  "http://localhost:8080/events?chain_id=11155111&event_type=NewFeedback"
 
-# Combine filters
+# Get events for specific agent on Sepolia
 curl -H "Authorization: Bearer $TOKEN" \
-  "http://localhost:8080/events?hours=48&event_type=Registered&limit=10"
+  "http://localhost:8080/events?chain_id=11155111&agent_id=3"
+
+# Get events for specific agent on Ethereum mainnet
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=1&agent_id=3"
+
+# Combine filters on Sepolia
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=11155111&hours=48&event_type=Registered&limit=10"
+
+# Get all events for agent 4 on Sepolia
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=11155111&agent_id=4&limit=1000"
+
+# Pagination: Get first page (10 results)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=11155111&limit=10&offset=0"
+
+# Pagination: Get second page (next 10 results)
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=11155111&limit=10&offset=10"
+
+# Pagination: Get third page
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:8080/events?chain_id=11155111&limit=10&offset=20"
 ```
 
 **Response Format:**
 ```json
 {
   "success": true,
-  "count": 5,
+  "count": 10,
+  "total": 125,
+  "pagination": {
+    "offset": 0,
+    "limit": 10,
+    "has_more": true,
+    "next_offset": 10
+  },
   "events": [
     {
       "id": 7,
