@@ -131,7 +131,7 @@ impl Indexer {
             .context("Block not found")?;
 
         let block_timestamp = chrono::DateTime::from_timestamp(block.header.timestamp as i64, 0)
-            .unwrap_or_else(|| chrono::Utc::now());
+            .unwrap_or_else(chrono::Utc::now);
 
         // Fetch logs from all three contracts
         let filter = Filter::new()
@@ -197,7 +197,7 @@ impl Indexer {
             address: log.address(),
             data: LogData::new_unchecked(
                 log.topics().to_vec(),
-                log.data().data.clone().into(),
+                log.data().data.clone(),
             ),
         }
     }

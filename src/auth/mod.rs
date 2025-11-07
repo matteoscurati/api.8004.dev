@@ -198,7 +198,8 @@ pub fn validate_credentials(username: &str, password: &str) -> bool {
     }
 }
 
-/// Generate bcrypt hash for a password (utility function)
+/// Utility function for generating password hashes (used by tests and external scripts)
+#[allow(dead_code)]
 pub fn hash_password(password: &str) -> Result<String, bcrypt::BcryptError> {
     bcrypt::hash(password, bcrypt::DEFAULT_COST)
 }

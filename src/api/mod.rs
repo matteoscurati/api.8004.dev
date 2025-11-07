@@ -99,7 +99,6 @@ pub async fn start_server(
         .route("/events", get(get_recent_activity))
         .route("/ws", get(websocket_handler))
         .route("/stats", get(get_stats))
-        .layer(Extension(jwt_config.clone()))
         .layer(middleware::from_fn(jwt_middleware));
 
     // Configure CORS

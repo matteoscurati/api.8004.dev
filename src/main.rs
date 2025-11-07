@@ -85,8 +85,6 @@ async fn main() -> Result<()> {
         min_connections, max_connections
     );
 
-    info!("Database connected successfully");
-
     // Run migrations
     info!("Running database migrations...");
     sqlx::migrate!("./migrations").run(&pool).await?;

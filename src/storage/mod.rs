@@ -22,6 +22,69 @@ impl Storage {
         }
     }
 
+    /// Apply common query filters to a QueryBuilder
+    /// This reduces code duplication between get_recent_events and count_events
+    async fn apply_query_filters<'a>(
+        &self,
+        qb: &mut sqlx::QueryBuilder<'a, sqlx::Postgres>,
+        query: &'a EventQuery,
+    ) -> Result<()> {
+        // Filter by chain_id (REQUIRED for multi-chain support)
+        qb.push(" AND chain_id = ");
+        qb.push_bind(query.chain_id as i64);
+
+        // Calculate cutoff block if needed
+        if let Some(hours) = query.hours {
+            let cutoff = Utc::now() - Duration::hours(hours as i64);
+            qb.push(" AND block_timestamp >= ");
+            qb.push_bind(cutoff);
+        } else if let Some(blocks) = query.blocks {
+            let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
+                .fetch_one(&self.pool)
+                .await
+                .unwrap_or(0);
+            let cutoff = current_block.saturating_sub(blocks as i64);
+            qb.push(" AND block_number >= ");
+            qb.push_bind(cutoff);
+        }
+
+        // Filter by contract
+        if let Some(contract) = &query.contract {
+            qb.push(" AND contract_address = ");
+            qb.push_bind(contract.to_lowercase());
+        }
+
+        // Filter by event type
+        if let Some(event_type) = &query.event_type {
+            qb.push(" AND event_type = ");
+            qb.push_bind(event_type);
+        }
+
+        // Filter by category (maps to multiple event types)
+        if let Some(event_types) = query.event_types_for_category() {
+            if event_types.is_empty() {
+                // Empty vec means category exists but has no events yet (capabilities, payments)
+                // Add impossible condition to return zero results
+                qb.push(" AND 1 = 0");
+            } else {
+                qb.push(" AND event_type IN (");
+                let mut separated = qb.separated(", ");
+                for event_type in event_types {
+                    separated.push_bind(event_type);
+                }
+                separated.push_unseparated(")");
+            }
+        }
+
+        // Filter by agent_id (searches within JSONB event_data)
+        if let Some(agent_id) = &query.agent_id {
+            qb.push(" AND event_data->>'agent_id' = ");
+            qb.push_bind(agent_id);
+        }
+
+        Ok(())
+    }
+
     /// Store a new event in both cache and database
     pub async fn store_event(&self, event: Event) -> Result<()> {
         // Generate cache key
@@ -82,58 +145,8 @@ impl Storage {
             "#,
         );
 
-        // Filter by chain_id (REQUIRED for multi-chain support)
-        qb.push(" AND chain_id = ");
-        qb.push_bind(query.chain_id as i64);
-
-        // Calculate cutoff block if needed
-        if let Some(hours) = query.hours {
-            let cutoff = Utc::now() - Duration::hours(hours as i64);
-            qb.push(" AND block_timestamp >= ");
-            qb.push_bind(cutoff);
-        } else if let Some(blocks) = query.blocks {
-            let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
-                .fetch_one(&self.pool)
-                .await
-                .unwrap_or(0);
-            let cutoff = current_block.saturating_sub(blocks as i64);
-            qb.push(" AND block_number >= ");
-            qb.push_bind(cutoff);
-        }
-
-        // Filter by contract
-        if let Some(contract) = &query.contract {
-            qb.push(" AND contract_address = ");
-            qb.push_bind(contract.to_lowercase());
-        }
-
-        // Filter by event type
-        if let Some(event_type) = &query.event_type {
-            qb.push(" AND event_type = ");
-            qb.push_bind(event_type);
-        }
-
-        // Filter by category (maps to multiple event types)
-        if let Some(event_types) = query.event_types_for_category() {
-            if event_types.is_empty() {
-                // Empty vec means category exists but has no events yet (capabilities, payments)
-                // Add impossible condition to return zero results
-                qb.push(" AND 1 = 0");
-            } else {
-                qb.push(" AND event_type IN (");
-                let mut separated = qb.separated(", ");
-                for event_type in event_types {
-                    separated.push_bind(event_type);
-                }
-                separated.push_unseparated(")");
-            }
-        }
-
-        // Filter by agent_id (searches within JSONB event_data)
-        if let Some(agent_id) = &query.agent_id {
-            qb.push(" AND event_data->>'agent_id' = ");
-            qb.push_bind(agent_id);
-        }
+        // Apply common filters
+        self.apply_query_filters(&mut qb, &query).await?;
 
         // Add ordering
         qb.push(" ORDER BY block_number DESC, log_index DESC");
@@ -201,58 +214,8 @@ impl Storage {
             "#,
         );
 
-        // Filter by chain_id (REQUIRED for multi-chain support)
-        qb.push(" AND chain_id = ");
-        qb.push_bind(query.chain_id as i64);
-
-        // Calculate cutoff block if needed
-        if let Some(hours) = query.hours {
-            let cutoff = Utc::now() - Duration::hours(hours as i64);
-            qb.push(" AND block_timestamp >= ");
-            qb.push_bind(cutoff);
-        } else if let Some(blocks) = query.blocks {
-            let current_block: i64 = sqlx::query_scalar("SELECT COALESCE(MAX(block_number), 0) FROM events")
-                .fetch_one(&self.pool)
-                .await
-                .unwrap_or(0);
-            let cutoff = current_block.saturating_sub(blocks as i64);
-            qb.push(" AND block_number >= ");
-            qb.push_bind(cutoff);
-        }
-
-        // Filter by contract
-        if let Some(contract) = &query.contract {
-            qb.push(" AND contract_address = ");
-            qb.push_bind(contract.to_lowercase());
-        }
-
-        // Filter by event type
-        if let Some(event_type) = &query.event_type {
-            qb.push(" AND event_type = ");
-            qb.push_bind(event_type);
-        }
-
-        // Filter by category (maps to multiple event types)
-        if let Some(event_types) = query.event_types_for_category() {
-            if event_types.is_empty() {
-                // Empty vec means category exists but has no events yet (capabilities, payments)
-                // Add impossible condition to return zero results
-                qb.push(" AND 1 = 0");
-            } else {
-                qb.push(" AND event_type IN (");
-                let mut separated = qb.separated(", ");
-                for event_type in event_types {
-                    separated.push_bind(event_type);
-                }
-                separated.push_unseparated(")");
-            }
-        }
-
-        // Filter by agent_id
-        if let Some(agent_id) = &query.agent_id {
-            qb.push(" AND event_data->>'agent_id' = ");
-            qb.push_bind(agent_id);
-        }
+        // Apply common filters
+        self.apply_query_filters(&mut qb, &query).await?;
 
         // Execute count query
         let row = qb.build().fetch_one(&self.pool).await?;
