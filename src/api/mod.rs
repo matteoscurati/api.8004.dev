@@ -29,8 +29,7 @@ pub struct AppState {
 
 /// Configure CORS based on environment variables
 fn configure_cors() -> CorsLayer {
-    let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS")
-        .unwrap_or_else(|_| "*".to_string());
+    let allowed_origins = std::env::var("CORS_ALLOWED_ORIGINS").unwrap_or_else(|_| "*".to_string());
 
     if allowed_origins == "*" {
         warn!("CORS is set to allow all origins (*). This is NOT recommended for production!");
@@ -43,9 +42,7 @@ fn configure_cors() -> CorsLayer {
     // Parse comma-separated origins
     let origins: Vec<HeaderValue> = allowed_origins
         .split(',')
-        .filter_map(|origin| {
-            origin.trim().parse::<HeaderValue>().ok()
-        })
+        .filter_map(|origin| origin.trim().parse::<HeaderValue>().ok())
         .collect();
 
     if origins.is_empty() {
@@ -60,11 +57,7 @@ fn configure_cors() -> CorsLayer {
     CorsLayer::new()
         .allow_origin(origins)
         .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-        .allow_headers([
-            header::CONTENT_TYPE,
-            header::AUTHORIZATION,
-            header::ACCEPT,
-        ])
+        .allow_headers([header::CONTENT_TYPE, header::AUTHORIZATION, header::ACCEPT])
         .allow_credentials(true)
 }
 
@@ -73,10 +66,9 @@ pub async fn start_server(
     host: String,
     port: u16,
     storage: Storage,
+    event_tx: broadcast::Sender<Event>,
     metrics_handle: PrometheusHandle,
 ) -> anyhow::Result<()> {
-    let (event_tx, _) = broadcast::channel::<Event>(1000);
-
     let state = Arc::new(AppState {
         storage,
         event_tx,
@@ -91,6 +83,7 @@ pub async fn start_server(
         .route("/", get(health_check))
         .route("/health", get(health_check))
         .route("/health/detailed", get(health_check_detailed))
+        .route("/chains", get(get_chains))
         .route("/metrics", get(metrics_handler))
         .route("/login", post(login));
 
@@ -159,26 +152,60 @@ async fn health_check() -> impl IntoResponse {
     }))
 }
 
-/// Advanced health check (with DB and RPC checks)
-async fn health_check_detailed(
-    State(state): State<Arc<AppState>>,
-) -> impl IntoResponse {
+/// Advanced health check (with DB and multi-chain status)
+async fn health_check_detailed(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let mut overall_status = "healthy";
     let mut checks = serde_json::Map::new();
 
-    // Check database
-    match state.storage.get_last_synced_block().await {
-        Ok(block) => {
+    // Check database connectivity
+    match state.storage.get_enabled_chains().await {
+        Ok(chains) => {
+            // Check each chain status
+            let mut chains_status = serde_json::Map::new();
+            let mut failed_count = 0;
+            let mut stalled_count = 0;
+
+            for chain in &chains {
+                let chain_status = chain.status.as_deref().unwrap_or("unknown");
+
+                if chain_status == "failed" {
+                    failed_count += 1;
+                    overall_status = "degraded";
+                } else if chain_status == "stalled" {
+                    stalled_count += 1;
+                    if overall_status == "healthy" {
+                        overall_status = "degraded";
+                    }
+                }
+
+                chains_status.insert(
+                    chain.name.clone(),
+                    json!({
+                        "chain_id": chain.chain_id,
+                        "status": chain_status,
+                        "last_synced_block": chain.last_synced_block,
+                        "last_sync_time": chain.last_sync_time,
+                        "total_events": chain.total_events_indexed,
+                        "errors_last_hour": chain.errors_last_hour,
+                        "error_message": chain.error_message
+                    }),
+                );
+            }
+
             checks.insert(
                 "database".to_string(),
                 json!({
                     "status": "healthy",
-                    "last_synced_block": block
+                    "total_chains": chains.len(),
+                    "failed_chains": failed_count,
+                    "stalled_chains": stalled_count
                 }),
             );
+
+            checks.insert("chains".to_string(), json!(chains_status));
         }
         Err(e) => {
-            overall_status = "degraded";
+            overall_status = "unhealthy";
             checks.insert(
                 "database".to_string(),
                 json!({
@@ -247,24 +274,24 @@ async fn get_recent_activity(
     // Get events for current page
     let events = state.storage.get_recent_events(query.clone()).await?;
 
-    // Get category statistics
-    let stats = state.storage.get_category_stats(query.chain_id).await?;
+    // Get category statistics only if requested (to avoid unnecessary DB queries)
+    let stats = if query.include_stats {
+        Some(state.storage.get_category_stats(query.parse_chain_ids()).await?)
+    } else {
+        None
+    };
 
     // Calculate pagination metadata
     let limit = query.limit.unwrap_or(1000);
     let offset = query.offset.unwrap_or(0);
     let has_more = (offset + events.len() as i64) < total;
-    let next_offset = if has_more {
-        Some(offset + limit)
-    } else {
-        None
-    };
+    let next_offset = if has_more { Some(offset + limit) } else { None };
 
-    Ok(Json(json!({
+    // Build response
+    let mut response = json!({
         "success": true,
         "count": events.len(),
         "total": total,
-        "stats": stats,
         "pagination": {
             "offset": offset,
             "limit": limit,
@@ -272,22 +299,54 @@ async fn get_recent_activity(
             "next_offset": next_offset
         },
         "events": events
-    })))
+    });
+
+    // Add chain info if filtering by specific chains
+    if let Some(chain_ids) = query.parse_chain_ids() {
+        if !chain_ids.is_empty() {
+            response["chains_queried"] = json!(chain_ids);
+        }
+    } else {
+        response["chains_queried"] = json!("all");
+    }
+
+    // Add stats to response only if they were requested
+    if let Some(category_stats) = stats {
+        response["stats"] = json!(category_stats);
+    }
+
+    Ok(Json(response))
 }
 
-/// Get indexer statistics
+/// Get indexer statistics (DEPRECATED - use /health/detailed or /chains instead)
 async fn get_stats(
     claims: Claims,
     State(state): State<Arc<AppState>>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    info!("User '{}' requested stats", claims.sub);
-    let last_block = state.storage.get_last_synced_block().await.unwrap_or(0);
+    warn!("User '{}' requested deprecated /stats endpoint", claims.sub);
+
+    // Get multi-chain stats
+    let chains = state.storage.get_enabled_chains().await?;
     let (cache_size, cache_max) = state.storage.cache_stats();
 
     Ok(Json(json!({
-        "last_synced_block": last_block,
-        "cache_size": cache_size,
-        "cache_max_size": cache_max
+        "deprecated": true,
+        "message": "This endpoint is deprecated. Use /health/detailed or /chains for multi-chain statistics.",
+        "alternatives": {
+            "/health/detailed": "Complete health check with per-chain status",
+            "/chains": "List of all chains with indexing status"
+        },
+        "legacy_data": {
+            "cache_size": cache_size,
+            "cache_max_size": cache_max,
+            "total_chains": chains.len(),
+            "chains": chains.iter().map(|c| json!({
+                "name": c.name,
+                "chain_id": c.chain_id,
+                "last_synced_block": c.last_synced_block,
+                "total_events": c.total_events_indexed
+            })).collect::<Vec<_>>()
+        }
     })))
 }
 
@@ -397,3 +456,123 @@ where
 // Required for axum WebSocket
 use futures::stream::StreamExt;
 use futures::SinkExt;
+
+/// GET /chains - List all enabled chains with status
+async fn get_chains(
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Get all enabled chains from database
+    let chains = state.storage.get_enabled_chains().await?;
+
+    // Calculate overall status
+    let total_chains = chains.len();
+    let healthy_chains = chains
+        .iter()
+        .filter(|c| c.status.as_deref() == Some("active") || c.status.as_deref() == Some("syncing"))
+        .count();
+    let failed_chains = chains
+        .iter()
+        .filter(|c| c.status.as_deref() == Some("failed"))
+        .count();
+
+    let overall_status = if failed_chains > 0 {
+        "degraded"
+    } else if healthy_chains == total_chains {
+        "healthy"
+    } else {
+        "syncing"
+    };
+
+    Ok(Json(json!({
+        "status": overall_status,
+        "total_chains": total_chains,
+        "healthy_chains": healthy_chains,
+        "failed_chains": failed_chains,
+        "chains": chains
+    })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::{Event, EventData, EventType, RegisteredData};
+    use chrono::Utc;
+
+    fn create_test_event() -> Event {
+        Event {
+            id: Some(1),
+            chain_id: 11155111,
+            block_number: 1000,
+            block_timestamp: Utc::now(),
+            transaction_hash: "0xabc".to_string(),
+            log_index: 0,
+            contract_address: "0x1234".to_string(),
+            event_type: EventType::Registered,
+            event_data: EventData::Registered(RegisteredData {
+                agent_id: "1".to_string(),
+                token_uri: "https://example.com".to_string(),
+                owner: "0x5678".to_string(),
+            }),
+            created_at: Some(Utc::now()),
+        }
+    }
+
+    #[test]
+    fn test_configure_cors_permissive() {
+        // Test that CORS allows all origins when set to *
+        std::env::set_var("CORS_ALLOWED_ORIGINS", "*");
+        let cors = configure_cors();
+        // Can't easily test CorsLayer behavior, but we verify it doesn't panic
+        drop(cors);
+        std::env::remove_var("CORS_ALLOWED_ORIGINS");
+    }
+
+    #[test]
+    fn test_configure_cors_specific_origins() {
+        // Test that CORS parses multiple origins
+        std::env::set_var(
+            "CORS_ALLOWED_ORIGINS",
+            "http://localhost:3000,https://example.com",
+        );
+        let cors = configure_cors();
+        drop(cors);
+        std::env::remove_var("CORS_ALLOWED_ORIGINS");
+    }
+
+    #[test]
+    fn test_api_error_conversion() {
+        // Test that errors can be converted to ApiError
+        let error = anyhow::anyhow!("Test error");
+        let api_error: ApiError = error.into();
+
+        // Verify the error can be converted to response
+        let response = api_error.into_response();
+        assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    }
+
+    #[test]
+    fn test_broadcast_event() {
+        // Test that broadcast_event doesn't panic
+        let (tx, _rx) = broadcast::channel::<Event>(10);
+        let event = create_test_event();
+
+        broadcast_event(&tx, event);
+        // If we get here without panic, the test passes
+    }
+
+    #[test]
+    fn test_event_broadcast_channel() {
+        // Test that broadcast channel can be created for events
+        let (tx, rx1) = broadcast::channel::<Event>(10);
+        let rx2 = tx.subscribe();
+
+        // Send an event
+        let event = create_test_event();
+        tx.send(event.clone()).unwrap();
+
+        // Both receivers should get the event
+        // Note: We can't actually receive in sync test, but we verify channel creation works
+        drop(rx1);
+        drop(rx2);
+    }
+}

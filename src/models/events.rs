@@ -142,8 +142,11 @@ pub struct ValidationResponseData {
 /// Query parameters for filtering events
 #[derive(Debug, Clone, Deserialize)]
 pub struct EventQuery {
-    /// Filter by chain ID (REQUIRED for multi-chain support)
-    pub chain_id: u64,
+    /// Filter by chain ID(s) - OPTIONAL
+    /// - None: Query all chains
+    /// - Some("11155111"): Query single chain
+    /// - Some("11155111,84532,59141"): Query multiple chains (comma-separated)
+    pub chain_id: Option<String>,
 
     /// Number of blocks to look back
     pub blocks: Option<u64>,
@@ -163,6 +166,10 @@ pub struct EventQuery {
     /// Filter by category (agents, metadata, validation, feedback, all)
     pub category: Option<String>,
 
+    /// Include category statistics in response (default: false)
+    #[serde(default)]
+    pub include_stats: bool,
+
     /// Offset for pagination (number of records to skip)
     pub offset: Option<i64>,
 
@@ -171,6 +178,18 @@ pub struct EventQuery {
 }
 
 impl EventQuery {
+    /// Parse chain_id parameter into a list of chain IDs
+    /// - None: Returns None (query all chains)
+    /// - Some("11155111"): Returns Some(vec![11155111])
+    /// - Some("11155111,84532"): Returns Some(vec![11155111, 84532])
+    pub fn parse_chain_ids(&self) -> Option<Vec<u64>> {
+        self.chain_id.as_ref().map(|ids| {
+            ids.split(',')
+                .filter_map(|id| id.trim().parse::<u64>().ok())
+                .collect()
+        })
+    }
+
     /// Get event types for a given category
     /// Returns None if category is "all" or not specified (no filter)
     /// Returns Some(empty vec) for categories with no implemented events (empty result)
@@ -181,9 +200,9 @@ impl EventQuery {
             Some("validation") => Some(vec!["ValidationRequest", "ValidationResponse"]),
             Some("feedback") => Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"]),
             Some("capabilities") => Some(vec![]), // Not implemented yet - return empty
-            Some("payments") => Some(vec![]), // Not implemented yet - return empty
-            Some("all") | None => None, // No filter
-            _ => Some(vec![]), // Unknown category - return empty to be safe
+            Some("payments") => Some(vec![]),     // Not implemented yet - return empty
+            Some("all") | None => None,           // No filter
+            _ => Some(vec![]),                    // Unknown category - return empty to be safe
         }
     }
 }
@@ -191,13 +210,14 @@ impl EventQuery {
 impl Default for EventQuery {
     fn default() -> Self {
         Self {
-            chain_id: 11155111, // Sepolia as default
+            chain_id: None, // Query all chains by default
             blocks: Some(100),
             hours: None,
             contract: None,
             event_type: None,
             agent_id: None,
             category: None,
+            include_stats: false,
             offset: None,
             limit: Some(1000),
         }
@@ -223,7 +243,7 @@ mod tests {
     #[test]
     fn test_event_query_default_values() {
         let query = EventQuery::default();
-        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.chain_id, None); // Now optional, defaults to None (all chains)
         assert_eq!(query.blocks, Some(100));
         assert_eq!(query.hours, None);
         assert_eq!(query.contract, None);
@@ -234,7 +254,7 @@ mod tests {
     }
 
     #[test]
-    fn test_event_query_deserialize_chain_id_required() {
+    fn test_event_query_deserialize_chain_id_optional() {
         use serde_urlencoded;
 
         // Should succeed with chain_id
@@ -242,13 +262,16 @@ mod tests {
         let result: Result<EventQuery, _> = serde_urlencoded::from_str(query_string);
         assert!(result.is_ok());
         let query = result.unwrap();
-        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.chain_id, Some("11155111".to_string()));
         assert_eq!(query.limit, Some(10));
 
-        // Should fail without chain_id
+        // Should now succeed without chain_id (queries all chains)
         let query_string = "limit=10&offset=0";
         let result: Result<EventQuery, _> = serde_urlencoded::from_str(query_string);
-        assert!(result.is_err());
+        assert!(result.is_ok());
+        let query = result.unwrap();
+        assert_eq!(query.chain_id, None);
+        assert_eq!(query.limit, Some(10));
     }
 
     #[test]
@@ -258,9 +281,65 @@ mod tests {
         let query_string = "chain_id=11155111&limit=50&offset=100";
         let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
 
-        assert_eq!(query.chain_id, 11155111);
+        assert_eq!(query.chain_id, Some("11155111".to_string()));
         assert_eq!(query.limit, Some(50));
         assert_eq!(query.offset, Some(100));
+    }
+
+    #[test]
+    fn test_parse_chain_ids_single() {
+        let query = EventQuery {
+            chain_id: Some("11155111".to_string()),
+            ..Default::default()
+        };
+
+        let chain_ids = query.parse_chain_ids();
+        assert_eq!(chain_ids, Some(vec![11155111]));
+    }
+
+    #[test]
+    fn test_parse_chain_ids_multiple() {
+        let query = EventQuery {
+            chain_id: Some("11155111,84532,59141".to_string()),
+            ..Default::default()
+        };
+
+        let chain_ids = query.parse_chain_ids();
+        assert_eq!(chain_ids, Some(vec![11155111, 84532, 59141]));
+    }
+
+    #[test]
+    fn test_parse_chain_ids_with_spaces() {
+        let query = EventQuery {
+            chain_id: Some("11155111, 84532 , 59141".to_string()),
+            ..Default::default()
+        };
+
+        let chain_ids = query.parse_chain_ids();
+        assert_eq!(chain_ids, Some(vec![11155111, 84532, 59141]));
+    }
+
+    #[test]
+    fn test_parse_chain_ids_none() {
+        let query = EventQuery {
+            chain_id: None,
+            ..Default::default()
+        };
+
+        let chain_ids = query.parse_chain_ids();
+        assert_eq!(chain_ids, None); // None means all chains
+    }
+
+    #[test]
+    fn test_parse_chain_ids_invalid() {
+        let query = EventQuery {
+            chain_id: Some("11155111,invalid,84532".to_string()),
+            ..Default::default()
+        };
+
+        let chain_ids = query.parse_chain_ids();
+        // Invalid values are filtered out
+        assert_eq!(chain_ids, Some(vec![11155111, 84532]));
     }
 
     #[test]
@@ -270,13 +349,40 @@ mod tests {
         let query_string = "chain_id=1&blocks=200&contract=0x1234&event_type=Registered&agent_id=42&limit=25&offset=50";
         let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
 
-        assert_eq!(query.chain_id, 1);
+        assert_eq!(query.chain_id, Some("1".to_string()));
         assert_eq!(query.blocks, Some(200));
         assert_eq!(query.contract, Some("0x1234".to_string()));
         assert_eq!(query.event_type, Some("Registered".to_string()));
         assert_eq!(query.agent_id, Some("42".to_string()));
         assert_eq!(query.limit, Some(25));
         assert_eq!(query.offset, Some(50));
+    }
+
+    #[test]
+    fn test_event_query_include_stats_default() {
+        // Test that include_stats defaults to false when not provided
+        let query_string = "chain_id=1&limit=10";
+        let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
+
+        assert!(!query.include_stats);
+    }
+
+    #[test]
+    fn test_event_query_include_stats_true() {
+        // Test that include_stats can be set to true
+        let query_string = "chain_id=1&include_stats=true&limit=10";
+        let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
+
+        assert!(query.include_stats);
+    }
+
+    #[test]
+    fn test_event_query_include_stats_false_explicit() {
+        // Test that include_stats can be explicitly set to false
+        let query_string = "chain_id=1&include_stats=false&limit=10";
+        let query: EventQuery = serde_urlencoded::from_str(query_string).unwrap();
+
+        assert!(!query.include_stats);
     }
 
     #[test]
@@ -347,15 +453,8 @@ mod tests {
     #[test]
     fn test_category_mapping_agents() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("agents".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -365,15 +464,8 @@ mod tests {
     #[test]
     fn test_category_mapping_metadata() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("metadata".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -383,51 +475,36 @@ mod tests {
     #[test]
     fn test_category_mapping_validation() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("validation".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
-        assert_eq!(event_types, Some(vec!["ValidationRequest", "ValidationResponse"]));
+        assert_eq!(
+            event_types,
+            Some(vec!["ValidationRequest", "ValidationResponse"])
+        );
     }
 
     #[test]
     fn test_category_mapping_feedback() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("feedback".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
-        assert_eq!(event_types, Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"]));
+        assert_eq!(
+            event_types,
+            Some(vec!["NewFeedback", "FeedbackRevoked", "ResponseAppended"])
+        );
     }
 
     #[test]
     fn test_category_mapping_all() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("all".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -437,15 +514,7 @@ mod tests {
     #[test]
     fn test_category_mapping_none() {
         let query = EventQuery {
-            chain_id: 11155111,
-            category: None,
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -455,15 +524,8 @@ mod tests {
     #[test]
     fn test_category_mapping_capabilities() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("capabilities".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -473,15 +535,8 @@ mod tests {
     #[test]
     fn test_category_mapping_payments() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("payments".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
@@ -491,15 +546,8 @@ mod tests {
     #[test]
     fn test_category_mapping_unknown() {
         let query = EventQuery {
-            chain_id: 11155111,
             category: Some("unknown_category".to_string()),
-            blocks: None,
-            hours: None,
-            contract: None,
-            event_type: None,
-            agent_id: None,
-            offset: None,
-            limit: None,
+            ..Default::default()
         };
 
         let event_types = query.event_types_for_category();
