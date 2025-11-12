@@ -8,6 +8,12 @@ pub struct StatsTracker {
     stats: Arc<DashMap<u64, ChainStats>>, // key: chain_id
 }
 
+impl Default for StatsTracker {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl StatsTracker {
     pub fn new() -> Self {
         Self {
@@ -52,6 +58,7 @@ impl StatsTracker {
     }
 
     /// Get all stats for a chain
+    #[allow(dead_code)]
     pub fn get_chain_stats(&self, chain_id: u64) -> Option<ChainStatsSnapshot> {
         self.stats.get(&chain_id).map(|stats| stats.snapshot())
     }
@@ -104,6 +111,7 @@ impl ChainStats {
     }
 
     /// Create a snapshot of current stats
+    #[allow(dead_code)]
     fn snapshot(&self) -> ChainStatsSnapshot {
         ChainStatsSnapshot {
             polling_rate: self.get_polling_rate(),
@@ -114,6 +122,7 @@ impl ChainStats {
 
 /// Snapshot of chain statistics for API responses
 #[derive(Debug, Clone, serde::Serialize)]
+#[allow(dead_code)]
 pub struct ChainStatsSnapshot {
     pub polling_rate: f64,
     pub current_block: Option<u64>,
@@ -144,7 +153,7 @@ mod tests {
 
         // Should have recorded 5 polls
         let rate = tracker.get_polling_rate(11155111);
-        assert!(rate >= 4.0 && rate <= 6.0); // Allow some variance
+        assert!((4.0..=6.0).contains(&rate)); // Allow some variance
     }
 
     #[test]
