@@ -33,8 +33,9 @@ RUN apt-get update && apt-get install -y \
 # Copy binary from builder
 COPY --from=builder /app/target/release/api_8004_dev /usr/local/bin/api_8004_dev
 
-# Copy migrations
+# Copy migrations and configuration
 COPY migrations ./migrations
+COPY chains.yaml ./chains.yaml
 
 # Create non-root user
 RUN useradd -m -u 1000 indexer && \

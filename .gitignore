@@ -4,9 +4,6 @@
 *.pdb
 Cargo.lock
 
-# Documentation
-/docs/
-
 # Environment
 .env
 .env.local
@@ -55,6 +52,8 @@ postgres_data/
 
 # Local test files
 .env.test
+test-blocks-real.json
+/tmp/*.json
 
 # Event data files (downloaded via scripts)
 events_*.json

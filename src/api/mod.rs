@@ -1,5 +1,6 @@
 use crate::auth::{self, Claims, JwtConfig, LoginRequest, LoginResponse};
 use crate::models::{Event, EventQuery};
+use crate::stats::StatsTracker;
 use crate::storage::Storage;
 use axum::{
     extract::{
@@ -25,6 +26,7 @@ pub struct AppState {
     pub storage: Storage,
     pub event_tx: broadcast::Sender<Event>,
     pub metrics_handle: PrometheusHandle,
+    pub stats_tracker: StatsTracker,
 }
 
 /// Configure CORS based on environment variables
@@ -68,11 +70,13 @@ pub async fn start_server(
     storage: Storage,
     event_tx: broadcast::Sender<Event>,
     metrics_handle: PrometheusHandle,
+    stats_tracker: StatsTracker,
 ) -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         storage,
         event_tx,
         metrics_handle,
+        stats_tracker,
     });
 
     // Initialize JWT config
@@ -92,6 +96,7 @@ pub async fn start_server(
         .route("/events", get(get_recent_activity))
         .route("/ws", get(websocket_handler))
         .route("/stats", get(get_stats))
+        .route("/chains/status", get(get_chains_status))
         .layer(middleware::from_fn(jwt_middleware));
 
     // Configure CORS
@@ -489,6 +494,69 @@ async fn get_chains(
         "healthy_chains": healthy_chains,
         "failed_chains": failed_chains,
         "chains": chains
+    })))
+}
+
+/// GET /chains/status - Get detailed status for all chains with monitoring data
+async fn get_chains_status(
+    claims: Claims,
+    State(state): State<Arc<AppState>>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    info!("User '{}' requested chains status", claims.sub);
+
+    // Get all enabled chains from database
+    let chains = state.storage.get_enabled_chains().await?;
+
+    let mut chain_statuses = vec![];
+
+    for chain in chains {
+        // Get current block from stats tracker
+        let current_block = state.stats_tracker.get_current_block(chain.chain_id);
+
+        // Get indexer block from database
+        let indexer_block = chain.last_synced_block.unwrap_or(0);
+
+        // Calculate blocks behind
+        let blocks_behind = if let Some(current) = current_block {
+            current.saturating_sub(indexer_block)
+        } else {
+            0
+        };
+
+        // Get polling rate
+        let polling_rate = state.stats_tracker.get_polling_rate(chain.chain_id);
+
+        // Get event counts by type
+        let event_counts = state
+            .storage
+            .get_event_counts_by_type(chain.chain_id)
+            .await
+            .unwrap_or_default();
+
+        chain_statuses.push(json!({
+            "chain_id": chain.chain_id,
+            "name": chain.name,
+            "status": chain.status.unwrap_or_else(|| "unknown".to_string()),
+            "blocks": {
+                "current": current_block,
+                "indexed": indexer_block,
+                "behind": blocks_behind
+            },
+            "polling": {
+                "rate_per_minute": format!("{:.2}", polling_rate)
+            },
+            "events": {
+                "total": chain.total_events_indexed.unwrap_or(0),
+                "by_type": event_counts
+            },
+            "last_sync_time": chain.last_sync_time
+        }));
+    }
+
+    Ok(Json(json!({
+        "success": true,
+        "timestamp": chrono::Utc::now().to_rfc3339(),
+        "chains": chain_statuses
     })))
 }
 

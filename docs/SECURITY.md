@@ -101,10 +101,11 @@ For local development, use `.env` file:
 
 ```env
 # .env (DO NOT COMMIT)
-RPC_URL=https://...
 DATABASE_URL=postgresql://...
 JWT_SECRET=dev-secret-min-32-chars
 AUTH_PASSWORD=dev-password
+
+# Note: Chain configuration (RPC URLs, contracts) is in chains.yaml
 ```
 
 ## 📝 Checklist Before Pushing

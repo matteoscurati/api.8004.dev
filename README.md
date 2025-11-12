@@ -1,16 +1,24 @@
-# API 8004.dev - ERC-8004 Event Indexer
+# ERC-8004 Multi-Chain Event Indexer
 
-A production-ready, high-performance Rust-based indexer for ERC-8004 (Trustless Agents) smart contract events on Ethereum Sepolia testnet.
+A production-ready, high-performance Rust-based indexer for ERC-8004 (Trustless Agents) smart contract events across multiple blockchain networks.
+
+[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+> **Live API:** [api-8004-dev.fly.dev](https://api-8004-dev.fly.dev)
+> **Documentation:** [docs/](docs/)
+> **Scripts:** [scripts/](scripts/)
 
 ## Features
 
 ### Core Functionality
-- **Block-by-block event indexing** from three ERC-8004 registry contracts
+- **Multi-chain support**: Ethereum Sepolia, Base Sepolia, Linea Sepolia, Polygon Amoy, Hedera Testnet
+- **Block-by-block event indexing** from three ERC-8004 registry contracts per chain
 - **Hybrid storage**: In-memory cache (DashMap) + PostgreSQL persistence
 - **REST API** with flexible query filters and JWT authentication
 - **WebSocket support** for real-time event streaming
-- **Automatic recovery** from last synced block
-- **Rate limit handling** with configurable polling intervals
+- **Automatic recovery** from last synced block with crash resilience
+- **RPC provider failover** with health monitoring and rotation
 
 ### Production-Ready Features
 - **JWT Authentication** with bcrypt password hashing
@@ -48,6 +56,46 @@ The indexer monitors three ERC-8004 contracts:
 - `ValidationRequest` - Validation request submitted
 - `ValidationResponse` - Validation response provided
 
+## Repository Structure
+
+```
+api.8004.dev/
+├── src/                    # Rust source code
+│   ├── api/               # REST API and WebSocket handlers
+│   ├── auth/              # JWT authentication
+│   ├── config/            # Configuration management
+│   ├── indexer/           # Event indexer core logic
+│   ├── models/            # Data models and types
+│   ├── rpc/               # RPC provider management
+│   ├── stats/             # Statistics tracking
+│   └── storage/           # Database and cache layer
+├── migrations/            # SQL database migrations
+├── docs/                  # 📚 Comprehensive documentation
+│   ├── README.md         # Documentation index
+│   ├── QUICK_START.md    # Getting started guide
+│   ├── API_EXAMPLES.md   # API usage examples
+│   ├── DEPLOYMENT.md     # Production deployment
+│   └── ...               # See docs/ for full list
+├── scripts/               # 🛠️ Utility scripts
+│   ├── deployment/       # Deployment and release scripts
+│   ├── development/      # Development setup utilities
+│   ├── monitoring/       # Production monitoring scripts
+│   ├── testing/          # Automated test scripts
+│   └── utils/            # General utilities
+├── .github/               # GitHub Actions workflows
+├── chains.yaml            # Multi-chain configuration
+├── docker-compose.yml     # Docker setup
+├── Dockerfile             # Production container image
+└── README.md              # This file
+```
+
+**Key Resources:**
+- 📖 **[Documentation Index](docs/README.md)** - Complete documentation
+- 🔧 **[Scripts Guide](scripts/README.md)** - Available scripts and tools
+- 🚀 **[Quick Start](docs/QUICK_START.md)** - Get started in 5 minutes
+- 📡 **[API Examples](docs/API_EXAMPLES.md)** - API usage and integration
+- 🔒 **[Security Guide](docs/SECURITY.md)** - Security best practices
+
 ## Prerequisites
 
 - **Rust** 1.75+
@@ -84,17 +132,21 @@ createdb api_8004_dev
 
 ### 3. Configure Environment
 
-Create a `.env` file in the project root:
+The application uses two configuration files:
+- `.env` - Application settings (database, server, auth, etc.)
+- `chains.yaml` - Multi-chain configuration (RPC providers, contracts, chain settings)
+
+#### 3.1 Create .env file
+
+Copy `.env.example` to `.env` and configure:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your settings:
 
 ```env
-# Ethereum RPC Configuration
-RPC_URL=https://rpc.ankr.com/eth_sepolia/YOUR_API_KEY
-
-# Contract Addresses (Sepolia - Proxy Addresses)
-IDENTITY_REGISTRY_ADDRESS=0x8004a6090Cd10A7288092483047B097295Fb8847
-REPUTATION_REGISTRY_ADDRESS=0x8004B8FD1A363aa02fDC07635C0c5F94f6Af5B7E
-VALIDATION_REGISTRY_ADDRESS=0x8004CB39f29c09145F24Ad9dDe2A108C1A2cdfC5
-
 # Database Configuration
 DATABASE_URL=postgresql://USERNAME@localhost:5432/api_8004_dev
 DB_MAX_CONNECTIONS=10
@@ -104,10 +156,6 @@ DB_ACQUIRE_TIMEOUT_SECS=30
 # Server Configuration
 SERVER_HOST=0.0.0.0
 SERVER_PORT=8080
-
-# Indexer Configuration
-STARTING_BLOCK=9420233
-POLL_INTERVAL_MS=1000
 
 # Storage Configuration
 MAX_EVENTS_IN_MEMORY=10000
@@ -130,10 +178,20 @@ CORS_ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 # Rate Limiting
 RATE_LIMIT_REQUESTS=100
 RATE_LIMIT_WINDOW_SECS=60
-
-# Logging (optional)
-# LOG_FORMAT=json  # Use JSON format for production
 ```
+
+#### 3.2 Configure chains.yaml
+
+The `chains.yaml` file contains multi-chain configuration with RPC providers, contract addresses, and chain-specific settings. It's pre-configured for 5 testnets:
+- Ethereum Sepolia
+- Base Sepolia
+- Linea Sepolia
+- Polygon Amoy
+- Hedera Testnet
+
+**No changes needed for development** - the default configuration works out of the box.
+
+For production or custom chains, see [Multi-Chain Implementation Guide](docs/MULTICHAIN_IMPLEMENTATION.md)
 
 ### 4. Run Migrations and Start
 
@@ -353,6 +411,46 @@ Response:
   "cache_max_size": 10000
 }
 ```
+
+#### GET `/chains/status`
+Get comprehensive multi-chain monitoring status
+
+**Returns for each chain:**
+- Current blockchain block height
+- Last indexed block
+- Blocks behind
+- Polling rate (polls per minute)
+- Event counts by type
+
+```bash
+curl -H "Authorization: Bearer $TOKEN" \
+  http://localhost:8080/chains/status
+```
+
+Response:
+```json
+{
+  "chains": [
+    {
+      "chain_id": 11155111,
+      "chain_name": "Ethereum Sepolia",
+      "current_block": 7234567,
+      "indexed_block": 7234550,
+      "blocks_behind": 17,
+      "polling_rate_per_minute": 4.8,
+      "event_counts": {
+        "Registered": 145,
+        "MetadataSet": 89,
+        "NewFeedback": 67,
+        "ValidationRequest": 34,
+        "ValidationResponse": 28
+      }
+    }
+  ]
+}
+```
+
+**See also:** [Chain Status Monitoring Guide](docs/CHAIN_STATUS_MONITORING.md)
 
 #### WebSocket `/ws`
 Real-time event streaming via WebSocket connection
@@ -655,17 +753,15 @@ flyctl postgres create --name api-8004-dev-db --region ams
 # 4. Attach database to app
 flyctl postgres attach api-8004-dev-db --app api-8004-dev
 
-# 5. Set required secrets
+# 5. Set required secrets (only application settings, chains.yaml is deployed with the code)
 flyctl secrets set \
-  RPC_URL="https://eth-sepolia.g.alchemy.com/v2/YOUR_KEY" \
-  IDENTITY_REGISTRY_ADDRESS="0x8004a6090Cd10A7288092483047B097295Fb8847" \
-  REPUTATION_REGISTRY_ADDRESS="0x8004B8FD1A363aa02fDC07635C0c5F94f6Af5B7E" \
-  VALIDATION_REGISTRY_ADDRESS="0x8004CB39f29c09145F24Ad9dDe2A108C1A2cdfC5" \
   JWT_SECRET="your-secret-key-min-32-chars" \
   AUTH_USERNAME="admin" \
   AUTH_PASSWORD="your-password" \
-  STARTING_BLOCK="latest" \
   --app api-8004-dev
+
+# Note: Chain configuration (RPC URLs, contracts) is in chains.yaml
+# Update chains.yaml before deploying if needed
 
 # 6. Deploy
 flyctl deploy --app api-8004-dev
@@ -875,45 +971,41 @@ WHERE block_timestamp > NOW() - INTERVAL '1 hour'
 ORDER BY block_number DESC;
 ```
 
-## Project Structure
+## Detailed Project Structure
+
+For code architecture, see [Repository Structure](#repository-structure) above.
 
 ```
-api.8004.dev/
-├── src/
-│   ├── main.rs              # Application entry point
-│   ├── lib.rs               # Library exports for testing
-│   ├── api/                 # REST API and WebSocket handlers
-│   │   └── mod.rs           # Routes, authentication, CORS
-│   ├── auth/                # JWT authentication and password hashing
-│   │   └── mod.rs           # JWT config, validation, bcrypt
-│   ├── config.rs            # Configuration management with validation
-│   ├── contracts/           # Contract ABI and event definitions
-│   │   └── mod.rs           # Solidity event definitions
-│   ├── indexer/             # Core indexing logic
-│   │   └── mod.rs           # Block processing, event extraction
-│   ├── metrics/             # Prometheus metrics
-│   │   └── mod.rs           # Metric definitions and recording
-│   ├── models/              # Data models and types
-│   │   ├── mod.rs
-│   │   └── events.rs        # Event structures
-│   ├── rate_limit/          # Rate limiting middleware
-│   │   └── mod.rs
-│   ├── retry/               # Retry logic with exponential backoff
-│   │   └── mod.rs
-│   └── storage/             # Database and cache management
-│       └── mod.rs           # PostgreSQL + DashMap hybrid storage
-├── migrations/              # Database migrations
-│   └── 001_init.sql         # Initial schema
-├── tests/                   # Integration tests
-├── Cargo.toml              # Rust dependencies
-├── Dockerfile              # Multi-stage build
-├── docker-compose.yml      # Complete stack setup
-├── api.8004.dev.service # Systemd service file
-├── .env                    # Configuration (not in git)
-├── .env.example            # Example configuration
-├── PRODUCTION_DEPLOY.md    # Detailed deployment guide
-├── API_AUTHENTICATION.md   # Authentication guide
-└── README.md               # This file
+src/
+├── main.rs                  # Application entry point
+├── lib.rs                   # Library exports for testing
+├── api/                     # REST API and WebSocket handlers
+│   └── mod.rs               # Routes, authentication, CORS
+├── auth/                    # JWT authentication and password hashing
+│   └── mod.rs               # JWT config, validation, bcrypt
+├── config/                  # Configuration management
+│   └── mod.rs               # Multi-chain config loading, validation
+├── contracts/               # Contract ABI and event definitions
+│   └── mod.rs               # Solidity event definitions
+├── indexer/                 # Core indexing logic
+│   ├── mod.rs               # Block processing, event extraction
+│   └── supervisor.rs        # Multi-chain supervisor
+├── metrics/                 # Prometheus metrics
+│   └── mod.rs               # Metric definitions and recording
+├── models/                  # Data models and types
+│   ├── mod.rs
+│   └── events.rs            # Event structures
+├── rate_limit/              # Rate limiting middleware
+│   └── mod.rs
+├── retry/                   # Retry logic with exponential backoff
+│   └── mod.rs
+├── rpc/                     # RPC provider management
+│   ├── mod.rs               # Provider interface
+│   └── manager.rs           # Failover and health monitoring
+├── stats/                   # Statistics tracking
+│   └── mod.rs               # Polling rates, chain metrics
+└── storage/                 # Database and cache management
+    └── mod.rs               # PostgreSQL + DashMap hybrid storage
 ```
 
 ## Development
@@ -1074,13 +1166,16 @@ echo -n "$JWT_SECRET" | wc -c
 
 ## Roadmap
 
+- [x] Multi-chain support (✅ Implemented)
+- [x] RPC provider failover (✅ Implemented)
+- [x] Chain status monitoring (✅ Implemented)
 - [ ] GraphQL API support
 - [ ] Advanced filtering and aggregation queries
 - [ ] Historical data export
 - [ ] Event replay functionality
-- [ ] Multi-chain support
-- [ ] WebSocket authentication improvements
+- [ ] WebSocket filtering by chain/event type
 - [ ] Distributed deployment support
+- [ ] Grafana dashboard templates
 
 ## License
 
@@ -1107,8 +1202,10 @@ Contributions are welcome! Please:
 
 For issues and questions:
 - Open an issue on GitHub
-- Check existing documentation in `PRODUCTION_DEPLOY.md` and `API_AUTHENTICATION.md`
-- Review troubleshooting section above
+- Check existing documentation in [docs/](docs/) folder
+- Review [Troubleshooting](#troubleshooting) section above
+- See [Quick Start Guide](docs/QUICK_START.md) for getting started
+- Consult [API Examples](docs/API_EXAMPLES.md) for usage patterns
 
 ## Acknowledgments
 

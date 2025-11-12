@@ -441,6 +441,43 @@ impl Storage {
         }))
     }
 
+    /// Get event counts by type for a specific chain
+    pub async fn get_event_counts_by_type(&self, chain_id: u64) -> Result<EventTypeCount> {
+        // Query to count events by type for specific chain
+        let rows = sqlx::query(
+            r#"
+            SELECT event_type, COUNT(*) as count
+            FROM events
+            WHERE chain_id = $1
+            GROUP BY event_type
+            "#,
+        )
+        .bind(chain_id as i64)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut counts = EventTypeCount::default();
+
+        for row in rows {
+            let event_type: String = row.get("event_type");
+            let count: i64 = row.get("count");
+
+            match event_type.as_str() {
+                "Registered" => counts.registered = count as u64,
+                "MetadataSet" => counts.metadata_set = count as u64,
+                "UriUpdated" => counts.uri_updated = count as u64,
+                "NewFeedback" => counts.new_feedback = count as u64,
+                "FeedbackRevoked" => counts.feedback_revoked = count as u64,
+                "ResponseAppended" => counts.response_appended = count as u64,
+                "ValidationRequest" => counts.validation_request = count as u64,
+                "ValidationResponse" => counts.validation_response = count as u64,
+                _ => {}
+            }
+        }
+
+        Ok(counts)
+    }
+
     /// Get event statistics by category
     /// Returns counts for all categories: all, agents, metadata, validation, feedback
     /// - None: Stats for all chains
@@ -502,6 +539,19 @@ impl Storage {
             payments: 0, // Not implemented yet
         })
     }
+}
+
+/// Event counts by specific event type
+#[derive(Debug, Clone, Default, serde::Serialize)]
+pub struct EventTypeCount {
+    pub registered: u64,
+    pub metadata_set: u64,
+    pub uri_updated: u64,
+    pub new_feedback: u64,
+    pub feedback_revoked: u64,
+    pub response_appended: u64,
+    pub validation_request: u64,
+    pub validation_response: u64,
 }
 
 /// Statistics for event categories

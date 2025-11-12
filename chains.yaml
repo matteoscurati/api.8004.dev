@@ -1,0 +1,332 @@
+# Multi-Chain Configuration for ERC-8004 Indexer
+# This file defines all supported blockchain networks
+
+chains:
+  # ============================================================================
+  # TESTNET CHAINS (Enabled for development and testing)
+  # ============================================================================
+
+  # Ethereum Sepolia Testnet (Primary testnet)
+  - name: "Ethereum Sepolia"
+    chain_id: 11155111
+    enabled: true
+    rpc_providers:
+      # Priority 1: Alchemy (151ms, fastest and reliable)
+      - url: "https://eth-sepolia.g.alchemy.com/v2/5d0eE7OcooxSxb9kqSSzhuHBIMc53_u4"
+        weight: 40  # Higher weight for best performer
+        priority: 1
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      # Priority 2: Infura (529ms, reliable)
+      - url: "https://sepolia.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 20
+        priority: 2
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+      # Priority 3: Ankr (currently disabled - API key issue, keep for future)
+      - url: "https://rpc.ankr.com/eth_sepolia/c6f3980a20bb6dd2106c94f98fb6eda24ae828b8adf84f4f658687530c211fda"
+        weight: 10
+        priority: 3
+        max_requests_per_minute: 500
+        cooldown_on_error_ms: 120000  # Longer cooldown for disabled endpoint
+      # Priority 4: QuickNode (currently failing, keep for future)
+      - url: "https://ultra-few-glitter.ethereum-sepolia.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 5
+        priority: 4
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 120000  # Longer cooldown
+    contracts:
+      identity_registry: "0x8004a6090Cd10A7288092483047B097295Fb8847"
+      reputation_registry: "0x8004B8FD1A363aa02fDC07635C0c5F94f6Af5B7E"
+      validation_registry: "0x8004CB39f29c09145F24Ad9dDe2A108C1A2cdfC5"
+    starting_block: "latest"
+    poll_interval_ms: 12000  # 12 seconds (Ethereum block time)
+    batch_size: 1
+    adaptive_polling: true
+
+  # Base Sepolia Testnet (Coinbase Layer 2)
+  - name: "Base Sepolia"
+    chain_id: 84532
+    enabled: true
+    rpc_providers:
+      # Priority 1: Alchemy (130ms, fastest!)
+      - url: "https://base-sepolia.g.alchemy.com/v2/ZlrhTJUl6Mq89yHjlROTh"
+        weight: 40  # Higher weight for best performer
+        priority: 1
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      # Priority 2: Public Base endpoint (188ms, reliable and free)
+      - url: "https://sepolia.base.org"
+        weight: 25
+        priority: 2
+        max_requests_per_minute: 50  # Public endpoint, conservative limit
+        cooldown_on_error_ms: 60000
+      # Priority 3: Infura (566ms, reliable)
+      - url: "https://base-sepolia.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 15
+        priority: 3
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+      # Priority 4: QuickNode (currently failing, keep for future)
+      - url: "https://ultra-few-glitter.base-sepolia.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 5
+        priority: 4
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 120000  # Longer cooldown
+    contracts:
+      identity_registry: "0x8004AA63c570c570eBF15376c0dB199918BFe9Fb"
+      reputation_registry: "0x8004bd8daB57f14Ed299135749a5CB5c42d341BF"
+      validation_registry: "0x8004C269D0A5647E51E121FeB226200ECE932d55"
+    starting_block: "latest"
+    poll_interval_ms: 2000  # 2 seconds (Base block time)
+    batch_size: 5
+    adaptive_polling: true
+
+  # Linea Sepolia Testnet (ConsenSys zkEVM Layer 2)
+  - name: "Linea Sepolia"
+    chain_id: 59141
+    enabled: true
+    rpc_providers:
+      # Priority 1: Alchemy (409ms, good performance)
+      - url: "https://linea-sepolia.g.alchemy.com/v2/ZlrhTJUl6Mq89yHjlROTh"
+        weight: 35
+        priority: 1
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      # Priority 2: Public Linea endpoint (505ms, reliable)
+      - url: "https://rpc.sepolia.linea.build"
+        weight: 25
+        priority: 2
+        max_requests_per_minute: 50
+        cooldown_on_error_ms: 60000
+      # Priority 3: Infura (568ms, reliable)
+      - url: "https://linea-sepolia.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 20
+        priority: 3
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+      # Priority 4: QuickNode (currently failing, keep for future)
+      - url: "https://ultra-few-glitter.lens-testnet.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 5
+        priority: 4
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 120000  # Longer cooldown
+    contracts:
+      identity_registry: "0x8004aa7C931bCE1233973a0C6A667f73F66282e7"
+      reputation_registry: "0x8004bd8483b99310df121c46ED8858616b2Bba02"
+      validation_registry: "0x8004c44d1EFdd699B2A26e781eF7F77c56A9a4EB"
+    starting_block: "latest"
+    poll_interval_ms: 2000  # 2 seconds
+    batch_size: 5
+    adaptive_polling: true
+
+  # Polygon Amoy Testnet (Polygon PoS testnet, replaces Mumbai)
+  - name: "Polygon Amoy"
+    chain_id: 80002
+    enabled: true
+    rpc_providers:
+      - url: "https://rpc-amoy.polygon.technology"
+        weight: 30
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+    contracts:
+      identity_registry: "0x8004ad19E14B9e0654f73353e8a0B600D46C2898"
+      reputation_registry: "0x8004B12F4C2B42d00c46479e859C92e39044C930"
+      validation_registry: "0x8004C11C213ff7BaD36489bcBDF947ba5eee289B"
+    starting_block: "latest"
+    poll_interval_ms: 2000  # 2 seconds (Polygon block time)
+    batch_size: 5
+    adaptive_polling: true
+
+  # Hedera Testnet (Hedera Hashgraph EVM)
+  - name: "Hedera Testnet"
+    chain_id: 296
+    enabled: true
+    rpc_providers:
+      - url: "https://testnet.hashio.io/api"
+        weight: 30
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+    contracts:
+      identity_registry: "0x4c74ebd72921d537159ed2053f46c12a7d8e5923"
+      reputation_registry: "0xc565edcba77e3abeade40bfd6cf6bf583b3293e0"
+      validation_registry: "0x18df085d85c586e9241e0cd121ca422f571c2da6"
+    starting_block: "latest"
+    poll_interval_ms: 5000  # 5 seconds (Hedera block time)
+    batch_size: 3
+    adaptive_polling: true
+
+  # HyperEVM Testnet (Hyperliquid)
+  - name: "HyperEVM Testnet"
+    chain_id: 998
+    enabled: false  # Disabled by default - enable when RPC is confirmed
+    rpc_providers:
+      - url: "https://api.hyperliquid-testnet.xyz/evm"
+        weight: 30
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+    # Note: RPC URL may need verification - check https://hyperliquid.gitbook.io
+    contracts:
+      identity_registry: "0x8004A9560C0edce880cbD24Ba19646470851C986"
+      reputation_registry: "0x8004b490779A65D3290a31fD96471122050dF671"
+      validation_registry: "0x8004C86198fdB8d8169c0405D510EC86cc7B0551"
+    starting_block: "latest"
+    poll_interval_ms: 1000  # Sub-second blocks
+    batch_size: 10
+    adaptive_polling: true
+
+  # SKALE Base Sepolia Testnet
+  - name: "SKALE Base Sepolia"
+    chain_id: 0  # TODO: Verify chain ID from SKALE docs
+    enabled: false  # Disabled until chain_id and RPC are confirmed
+    rpc_providers:
+      - url: "https://testnet.skalenodes.com/v1/base-sepolia"
+        weight: 30
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+    # Note: RPC URL needs verification - check https://docs.skale.space
+    # Faucet: https://base-sepolia-faucet.skale.space
+    contracts:
+      identity_registry: "0x4fa7900596c9830664406d3796952c59ec4133d9"
+      reputation_registry: "0x9b9d23a47697691ef1016906d1f8ddfc009e6a69"
+      validation_registry: "0x34ae1196b1609e01ebc90b75c802b2ea87203f13"
+    starting_block: "latest"
+    poll_interval_ms: 1000  # SKALE has very fast blocks
+    batch_size: 10
+    adaptive_polling: true
+
+  # ============================================================================
+  # MAINNET CHAINS (Disabled by default - enable when ready for production)
+  # ============================================================================
+
+  # Ethereum Mainnet
+  - name: "Ethereum Mainnet"
+    chain_id: 1
+    enabled: false  # Disabled - enable when contract addresses are available
+    rpc_providers:
+      - url: "https://rpc.ankr.com/eth/c6f3980a20bb6dd2106c94f98fb6eda24ae828b8adf84f4f658687530c211fda"
+        weight: 30
+        priority: 1
+        max_requests_per_minute: 500
+        cooldown_on_error_ms: 60000
+      - url: "https://eth-mainnet.g.alchemy.com/v2/ZlrhTJUl6Mq89yHjlROTh"
+        weight: 20
+        priority: 2
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      - url: "https://ultra-few-glitter.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 15
+        priority: 3
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 60000
+      - url: "https://mainnet.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 10
+        priority: 4
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+    contracts:
+      # TODO: Add mainnet contract addresses when deployed
+      identity_registry: "0x0000000000000000000000000000000000000000"
+      reputation_registry: "0x0000000000000000000000000000000000000000"
+      validation_registry: "0x0000000000000000000000000000000000000000"
+    starting_block: "latest"
+    poll_interval_ms: 12000  # 12 seconds (Ethereum block time)
+    batch_size: 1
+    adaptive_polling: true
+
+  # Base Mainnet (Coinbase Layer 2)
+  - name: "Base Mainnet"
+    chain_id: 8453
+    enabled: false  # Disabled - enable when contract addresses are available
+    rpc_providers:
+      - url: "https://base-mainnet.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 20
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+      - url: "https://ultra-few-glitter.base-mainnet.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 25
+        priority: 2
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 60000
+      - url: "https://base-mainnet.g.alchemy.com/v2/ZlrhTJUl6Mq89yHjlROTh"
+        weight: 20
+        priority: 3
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      - url: "https://mainnet.base.org"
+        weight: 10
+        priority: 4
+        max_requests_per_minute: 50
+        cooldown_on_error_ms: 120000
+    contracts:
+      # TODO: Add mainnet contract addresses when deployed
+      identity_registry: "0x0000000000000000000000000000000000000000"
+      reputation_registry: "0x0000000000000000000000000000000000000000"
+      validation_registry: "0x0000000000000000000000000000000000000000"
+    starting_block: "latest"
+    poll_interval_ms: 2000  # 2 seconds (Base block time)
+    batch_size: 5
+    adaptive_polling: true
+
+  # Linea Mainnet (ConsenSys zkEVM Layer 2)
+  - name: "Linea Mainnet"
+    chain_id: 59144
+    enabled: false  # Disabled - enable when contract addresses are available
+    rpc_providers:
+      - url: "https://linea-mainnet.infura.io/v3/fe7200f3a9b14894b3ad27e00b4e9afb"
+        weight: 20
+        priority: 1
+        max_requests_per_minute: 100
+        cooldown_on_error_ms: 60000
+      - url: "https://ultra-few-glitter.linea-mainnet.quiknode.pro/ae42b0b43feb8e1d20f512d3c718e2b6ff52ed76"
+        weight: 15
+        priority: 2
+        max_requests_per_minute: 200
+        cooldown_on_error_ms: 60000
+      - url: "https://linea-mainnet.g.alchemy.com/v2/ZlrhTJUl6Mq89yHjlROTh"
+        weight: 20
+        priority: 3
+        max_requests_per_minute: 300
+        cooldown_on_error_ms: 60000
+      - url: "https://rpc.linea.build"
+        weight: 10
+        priority: 4
+        max_requests_per_minute: 50
+        cooldown_on_error_ms: 120000
+    contracts:
+      # TODO: Add mainnet contract addresses when deployed
+      identity_registry: "0x0000000000000000000000000000000000000000"
+      reputation_registry: "0x0000000000000000000000000000000000000000"
+      validation_registry: "0x0000000000000000000000000000000000000000"
+    starting_block: "latest"
+    poll_interval_ms: 2000  # 2 seconds
+    batch_size: 5
+    adaptive_polling: true
+
+# ============================================================================
+# GLOBAL SETTINGS
+# ============================================================================
+
+global:
+  # Maximum retry attempts for failed indexers
+  max_indexer_retries: 5
+
+  # Base delay for exponential backoff (in milliseconds)
+  retry_base_delay_ms: 1000
+
+  # Maximum delay for exponential backoff (in milliseconds)
+  retry_max_delay_ms: 60000
+
+  # Enable/disable adaptive polling globally
+  adaptive_polling_enabled: true
+
+  # Maximum blocks to process in parallel during catch-up
+  max_parallel_blocks: 10
+
+  # Delay between parallel batch processing (to avoid RPC rate limits)
+  batch_processing_delay_ms: 50

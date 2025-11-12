@@ -16,9 +16,9 @@ use std::fmt::Display;
 /// JWT Claims structure
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Claims {
-    pub sub: String,      // Subject (username or user_id)
-    pub exp: usize,       // Expiration time (Unix timestamp)
-    pub iat: usize,       // Issued at (Unix timestamp)
+    pub sub: String, // Subject (username or user_id)
+    pub exp: usize,  // Expiration time (Unix timestamp)
+    pub iat: usize,  // Issued at (Unix timestamp)
 }
 
 /// JWT authentication error
@@ -64,8 +64,7 @@ pub struct JwtConfig {
 impl JwtConfig {
     pub fn from_env() -> Self {
         Self {
-            secret: std::env::var("JWT_SECRET")
-                .expect("JWT_SECRET must be set in environment"),
+            secret: std::env::var("JWT_SECRET").expect("JWT_SECRET must be set in environment"),
             token_expiration_hours: std::env::var("JWT_EXPIRATION_HOURS")
                 .unwrap_or_else(|_| "24".to_string())
                 .parse()
@@ -100,11 +99,9 @@ impl JwtConfig {
             &DecodingKey::from_secret(self.secret.as_bytes()),
             &Validation::default(),
         )
-        .map_err(|e| {
-            match e.kind() {
-                jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::TokenExpired,
-                _ => AuthError::InvalidToken,
-            }
+        .map_err(|e| match e.kind() {
+            jsonwebtoken::errors::ErrorKind::ExpiredSignature => AuthError::TokenExpired,
+            _ => AuthError::InvalidToken,
         })?;
 
         Ok(token_data.claims)
@@ -121,9 +118,8 @@ where
 
     async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
         // Try to extract token from Authorization header first
-        let token = if let Ok(TypedHeader(Authorization(bearer))) = parts
-            .extract::<TypedHeader<Authorization<Bearer>>>()
-            .await
+        let token = if let Ok(TypedHeader(Authorization(bearer))) =
+            parts.extract::<TypedHeader<Authorization<Bearer>>>().await
         {
             bearer.token().to_string()
         } else {
@@ -132,15 +128,14 @@ where
                 .uri
                 .query()
                 .and_then(|q| {
-                    q.split('&')
-                        .find_map(|pair| {
-                            let mut split = pair.split('=');
-                            if split.next() == Some("token") {
-                                split.next().map(|t| t.to_string())
-                            } else {
-                                None
-                            }
-                        })
+                    q.split('&').find_map(|pair| {
+                        let mut split = pair.split('=');
+                        if split.next() == Some("token") {
+                            split.next().map(|t| t.to_string())
+                        } else {
+                            None
+                        }
+                    })
                 })
                 .ok_or(AuthError::MissingToken)?
         };
@@ -192,7 +187,8 @@ pub fn validate_credentials(username: &str, password: &str) -> bool {
         }
     } else {
         // Fallback: if no hash provided, check plain password (NOT RECOMMENDED FOR PRODUCTION)
-        let plain_password = std::env::var("AUTH_PASSWORD").unwrap_or_else(|_| "changeme".to_string());
+        let plain_password =
+            std::env::var("AUTH_PASSWORD").unwrap_or_else(|_| "changeme".to_string());
         tracing::warn!("Using plain text password! Set AUTH_PASSWORD_HASH for production");
         username == valid_username && password == plain_password
     }
@@ -207,8 +203,8 @@ pub fn hash_password(password: &str) -> Result<String, bcrypt::BcryptError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::env;
     use serial_test::serial;
+    use std::env;
 
     #[test]
     fn test_hash_password() {
@@ -225,24 +221,34 @@ mod tests {
     #[test]
     #[serial]
     fn test_jwt_token_creation_and_validation() {
-        env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
         env::set_var("JWT_EXPIRATION_HOURS", "24");
 
         let config = JwtConfig::from_env();
         let username = "testuser";
 
         // Create token
-        let token = config.create_token(username).expect("Failed to create token");
+        let token = config
+            .create_token(username)
+            .expect("Failed to create token");
 
         // Validate token
-        let claims = config.validate_token(&token).expect("Failed to validate token");
+        let claims = config
+            .validate_token(&token)
+            .expect("Failed to validate token");
         assert_eq!(claims.sub, username);
     }
 
     #[test]
     #[serial]
     fn test_jwt_token_invalid() {
-        env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
         env::set_var("JWT_EXPIRATION_HOURS", "24");
 
         let config = JwtConfig::from_env();
@@ -255,7 +261,10 @@ mod tests {
         env::set_var("JWT_SECRET", "different-secret-key-that-is-32-chars");
         let config2 = JwtConfig::from_env();
 
-        env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
         let config1 = JwtConfig::from_env();
         let token = config1.create_token("testuser").unwrap();
 
@@ -302,7 +311,10 @@ mod tests {
     #[serial]
     fn test_jwt_config_loads_from_env() {
         // Just test that config loads without errors
-        env::set_var("JWT_SECRET", "test-secret-key-that-is-at-least-32-characters-long");
+        env::set_var(
+            "JWT_SECRET",
+            "test-secret-key-that-is-at-least-32-characters-long",
+        );
         env::set_var("JWT_EXPIRATION_HOURS", "48");
 
         let config = JwtConfig::from_env();
