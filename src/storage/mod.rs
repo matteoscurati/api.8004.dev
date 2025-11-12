@@ -490,27 +490,38 @@ impl Storage {
             } else if ids.len() == 1 {
                 format!("chain_id = {}", ids[0])
             } else {
-                format!("chain_id IN ({})", ids.iter().map(|id| id.to_string()).collect::<Vec<_>>().join(", "))
+                format!(
+                    "chain_id IN ({})",
+                    ids.iter()
+                        .map(|id| id.to_string())
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
             }
         } else {
             "1=1".to_string() // No chain filter, query all chains
         };
 
         // Count all events
-        let all_count: i64 = sqlx::query_scalar(&format!("SELECT COUNT(*) FROM events WHERE {}", chain_filter))
-            .fetch_one(&self.pool)
-            .await?;
+        let all_count: i64 = sqlx::query_scalar(&format!(
+            "SELECT COUNT(*) FROM events WHERE {}",
+            chain_filter
+        ))
+        .fetch_one(&self.pool)
+        .await?;
 
         // Count agents events (Registered)
         let agents_count: i64 = sqlx::query_scalar(&format!(
-            "SELECT COUNT(*) FROM events WHERE {} AND event_type = 'Registered'", chain_filter
+            "SELECT COUNT(*) FROM events WHERE {} AND event_type = 'Registered'",
+            chain_filter
         ))
         .fetch_one(&self.pool)
         .await?;
 
         // Count metadata events (MetadataSet, UriUpdated)
         let metadata_count: i64 = sqlx::query_scalar(&format!(
-            "SELECT COUNT(*) FROM events WHERE {} AND event_type IN ('MetadataSet', 'UriUpdated')", chain_filter
+            "SELECT COUNT(*) FROM events WHERE {} AND event_type IN ('MetadataSet', 'UriUpdated')",
+            chain_filter
         ))
         .fetch_one(&self.pool)
         .await?;

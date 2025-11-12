@@ -281,7 +281,12 @@ async fn get_recent_activity(
 
     // Get category statistics only if requested (to avoid unnecessary DB queries)
     let stats = if query.include_stats {
-        Some(state.storage.get_category_stats(query.parse_chain_ids()).await?)
+        Some(
+            state
+                .storage
+                .get_category_stats(query.parse_chain_ids())
+                .await?,
+        )
     } else {
         None
     };

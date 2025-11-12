@@ -173,8 +173,15 @@ async fn main() -> Result<()> {
     info!("🌐 Starting API server on {}:{}", api_host, api_port);
 
     let api_handle = tokio::spawn(async move {
-        if let Err(e) =
-            api::start_server(api_host, api_port, api_storage, event_tx, api_metrics, api_stats).await
+        if let Err(e) = api::start_server(
+            api_host,
+            api_port,
+            api_storage,
+            event_tx,
+            api_metrics,
+            api_stats,
+        )
+        .await
         {
             error!("❌ API server error: {}", e);
         }

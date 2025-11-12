@@ -187,7 +187,8 @@ impl Indexer {
                 Ok(Ok(block)) => {
                     self.provider_manager.mark_success().await;
                     // Update current block for stats
-                    self.stats_tracker.update_current_block(self.config.chain_id, block);
+                    self.stats_tracker
+                        .update_current_block(self.config.chain_id, block);
                     block
                 }
                 Ok(Err(e)) => {
