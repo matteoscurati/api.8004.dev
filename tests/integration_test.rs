@@ -8,15 +8,21 @@ use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
 
 /// Integration test configuration
-/// Note: Update with your actual PostgreSQL user (usually your system username on macOS)
-const TEST_DATABASE_URL: &str = "postgresql://matteoscurati@localhost:5432/api_8004_dev_test";
+/// Uses DATABASE_URL environment variable, or falls back to default local connection
+fn get_test_database_url() -> String {
+    std::env::var("DATABASE_URL").unwrap_or_else(|_| {
+        "postgresql://matteoscurati@localhost:5432/api_8004_dev_test".to_string()
+    })
+}
 
 /// Helper function to setup test database
 async fn setup_test_db() -> (PgPool, Storage) {
+    let database_url = get_test_database_url();
+
     // Create connection pool
     let pool = PgPoolOptions::new()
         .max_connections(10)
-        .connect(TEST_DATABASE_URL)
+        .connect(&database_url)
         .await
         .expect("Failed to connect to test database");
 
