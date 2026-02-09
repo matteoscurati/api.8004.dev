@@ -139,7 +139,7 @@ function buildAgentQueryV1_0(): string {
           active
           mcpEndpoint
           a2aEndpoint
-          x402support
+          x402Support
           ens
           did
           mcpVersion
