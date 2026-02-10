@@ -1839,7 +1839,7 @@ export function createSDKService(env: Env, cache?: KVNamespace): SDKService {
             total += count;
             if (count < 1000) break;
             skip += 1000;
-            if (skip > 10000) break; // Safety limit
+            if (skip > 50000) break; // Safety limit (aligned with graph-sync-worker)
           }
 
           return total;
