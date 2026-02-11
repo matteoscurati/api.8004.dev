@@ -168,6 +168,9 @@ stats.get('/global', async (c) => {
     });
   }
 
+  // Check if any chain has errors - don't cache stale data
+  const hasErrors = chainStats.some((chain) => chain.status === 'error');
+
   const response: GlobalStatsResponse = {
     success: true,
     data: {
@@ -179,8 +182,10 @@ stats.get('/global', async (c) => {
     },
   };
 
-  // Cache the response
-  await cache.set(cacheKey, response, CACHE_TTL.PLATFORM_STATS);
+  // Only cache if all chains succeeded
+  if (!hasErrors) {
+    await cache.set(cacheKey, response, CACHE_TTL.PLATFORM_STATS);
+  }
   return c.json(response);
 });
 
@@ -245,8 +250,10 @@ stats.get('/chains/:chainId', async (c) => {
     },
   };
 
-  // Cache the response
-  await cache.set(cacheKey, response, CACHE_TTL.PLATFORM_STATS);
+  // Only cache if chain stats succeeded (not error)
+  if (chainStat?.status !== 'error') {
+    await cache.set(cacheKey, response, CACHE_TTL.PLATFORM_STATS);
+  }
   return c.json(response);
 });
 
