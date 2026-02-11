@@ -479,6 +479,7 @@ import {
   buildSubgraphUrls as _buildSubgraphUrls,
   buildSubgraphUrl,
   DEFAULT_GRAPH_API_KEY,
+  executeWithChainKey,
   getGraphKeyManager,
   SUBGRAPH_IDS,
 } from '@/lib/config/graph';
@@ -1805,7 +1806,7 @@ export function createSDKService(env: Env, cache?: KVNamespace): SDKService {
 
       /**
        * Helper to count agents via direct subgraph query with optional filter
-       * Uses GraphKeyManager for key rotation and circuit breaker for resilience
+       * Uses chain-specific API keys with user key fallback for resilience
        * @param chainId - Chain ID to query
        * @param whereClause - Optional GraphQL where clause (e.g., "registrationFile_: { active: true }")
        */
@@ -1813,11 +1814,8 @@ export function createSDKService(env: Env, cache?: KVNamespace): SDKService {
         // Check if chain has a subgraph deployment
         if (!(chainId in SUBGRAPH_IDS)) return 0;
 
-        // Use key manager with retry for key rotation
-        return keyManager.executeWithRetry(async (apiKey) => {
-          const url = buildSubgraphUrl(chainId, apiKey);
-          if (!url) return 0;
-
+        // Use chain-specific key (with user key fallback) instead of round-robin
+        return executeWithChainKey(chainId, env.GRAPH_API_KEY, async (url) => {
           let total = 0;
           let skip = 0;
           const whereFilter = whereClause ? `where: { ${whereClause} }, ` : '';
@@ -1828,7 +1826,7 @@ export function createSDKService(env: Env, cache?: KVNamespace): SDKService {
             const data = await fetchSubgraphWithCircuitBreaker<CountResponse>(url, query);
 
             if (!data) {
-              // Circuit breaker triggered - throw to trigger key rotation
+              // Circuit breaker triggered - throw to trigger key fallback
               throw new Error(`Subgraph query failed for chain ${chainId}`);
             }
 
