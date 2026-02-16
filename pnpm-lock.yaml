@@ -25,8 +25,8 @@ importers:
         specifier: ^2.2.0
         version: 2.2.0
       '@x402/evm':
-        specifier: ^2.2.0
-        version: 2.2.0(typescript@5.9.3)
+        specifier: ^2.3.1
+        version: 2.3.1(typescript@5.9.3)
       '@x402/hono':
         specifier: ^2.2.0
         version: 2.2.0(hono@4.11.3)
@@ -1479,8 +1479,11 @@ packages:
   '@x402/core@2.2.0':
     resolution: {integrity: sha512-UyPX7UVrqCyFTMeDWAx9cn9LvcaRlUoAknSehuxJ07vXLVhC7Wx5R1h2CV12YkdB+hE6K48Qvfd4qrvbpqqYfw==}
 
-  '@x402/evm@2.2.0':
-    resolution: {integrity: sha512-fJaIS97Ir+ykkxLUdI+/cFiQFyruWukJbZ3PLo8518n6IKP9B7HqsJ1cUMRWd/fHFXNqOEAo6tKFW4wHKOxd2A==}
+  '@x402/core@2.3.1':
+    resolution: {integrity: sha512-CWvsf09tslISoVOzQ2TIoBLBP+bUycPsYmmRVe3EV5X2FtD7eXXpiPsiXLEVtWP7zhqLNP/5OIATsA2hSVLSfw==}
+
+  '@x402/evm@2.3.1':
+    resolution: {integrity: sha512-aN40OHG0HN1PhBXNFMRi5ISLHsExpF4qIvWUoVMKhFCfaXQDrqsfOKOC3PfcFtK/2Q8/SoiXNN7LsCkChL62lw==}
 
   '@x402/extensions@2.2.0':
     resolution: {integrity: sha512-WipmXWmp2T9ES9skFwzgLNoh+1xWZtHXxWTcoykdQZ9POPZBpewGkrcZ/+wf9/ml+pfeYAUHXwPbVkyJsAKTIA==}
@@ -1936,6 +1939,7 @@ packages:
 
   glob@10.5.0:
     resolution: {integrity: sha512-DfXN8DfhJ7NH3Oe7cFmu3NCu1wKbkReJ8TorzSAFbSKrlNaQSKfIzqYqVY8zlbs2NLBbWpRiU52GX2PbaBVNkg==}
+    deprecated: Old versions of glob are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exorbitant rates) by contacting i@izs.me
     hasBin: true
 
   gopd@1.2.0:
@@ -4166,9 +4170,13 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
-  '@x402/evm@2.2.0(typescript@5.9.3)':
+  '@x402/core@2.3.1':
     dependencies:
-      '@x402/core': 2.2.0
+      zod: 3.25.76
+
+  '@x402/evm@2.3.1(typescript@5.9.3)':
+    dependencies:
+      '@x402/core': 2.3.1
       viem: 2.43.5(typescript@5.9.3)(zod@3.25.76)
       zod: 3.25.76
     transitivePeerDependencies:
@@ -4178,7 +4186,7 @@ snapshots:
 
   '@x402/extensions@2.2.0':
     dependencies:
-      '@x402/core': 2.2.0
+      '@x402/core': 2.3.1
       ajv: 8.17.1
       zod: 3.25.76
 
